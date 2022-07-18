@@ -13,6 +13,8 @@ export type TExprContext = {
   funcs: DictOf<TExprFuncDef>
   vars: DictOf<TExprScalar>
   consts: DictOf<TExprScalar>
+  binops: DictOf<string>
+  unops: DictOf<string>
 }
 
 export type TExpression =
@@ -123,21 +125,32 @@ const BinaryOperatorPrecedence = [
   "||",
 ]
 
-export function createExprContext(
-  funcs: DictOf<TExprFuncDef> = {},
-  vars: DictOf<TExprScalar> = {},
-  consts: DictOf<TExprScalar> = {},
-  seed: string = "expreval"
-): TExprContext {
+export function createExprContext({
+  funcs,
+  vars,
+  consts,
+  binops,
+  unops,
+  seed = "expreval",
+}: {
+  funcs?: DictOf<TExprFuncDef>,
+  vars?: DictOf<TExprScalar>,
+  consts?: DictOf<TExprScalar>,
+  binops?: DictOf<string>,
+  unops?: DictOf<string>,
+  seed?: string
+}): TExprContext {
   return {
     rng: seedrandom.default(seed),
     vars: { ...vars },
     funcs: { ...STDLIB, ...funcs },
     consts: { ...CONSTS, ...consts },
+    binops: {...BINOP_MAP, ...binops},
+    unops: {...UNOP_MAP, ...unops},
   }
 }
 
-export async function evaluateExpr(code: string, ctx: TExprContext = createExprContext()): Promise<TExprScalar> {
+export async function evaluateExpr(code: string, ctx: TExprContext = createExprContext({})): Promise<TExprScalar> {
   return executeExpr(parseExpr(code), ctx)
 }
 
@@ -148,7 +161,7 @@ export function parseExpr(code: string): TExpression {
   return parser(code)
 }
 
-export async function executeExpr(ast: TExpression, ctx: TExprContext = createExprContext()): Promise<TExprScalar> {
+export async function executeExpr(ast: TExpression, ctx: TExprContext = createExprContext({})): Promise<TExprScalar> {
   switch (ast.type) {
     case "Literal":
       return ast.value
@@ -169,7 +182,7 @@ export async function executeExpr(ast: TExpression, ctx: TExprContext = createEx
       throw new Error(`Function not found: '${ast.callee.name}'`)
     case "BinaryExpression":
     case "ConditionalExpression":
-      const binop = Object.keys(BINOP_MAP).includes(ast.operator) ? BINOP_MAP[ast.operator] : null
+      const binop = Object.keys(ctx.binops).includes(ast.operator) ? ctx.binops[ast.operator] : null
       if (binop) {
         return executeExpr(
           {
@@ -185,7 +198,7 @@ export async function executeExpr(ast: TExpression, ctx: TExprContext = createEx
       }
       throw new Error(`Operator not found: '${ast.operator}'`)
     case "UnaryExpression":
-      const unop = Object.keys(UNOP_MAP).includes(ast.operator) ? BINOP_MAP[ast.operator] : null
+      const unop = Object.keys(ctx.unops).includes(ast.operator) ? ctx.unops[ast.operator] : null
       if (unop) {
         return executeExpr(
           {
@@ -205,16 +218,7 @@ export async function executeExpr(ast: TExpression, ctx: TExprContext = createEx
   }
 }
 
-async function attempt<T>(f: () => Promise<T>, err?: Error): Promise<T | Error> {
-  try {
-    return await f()
-  } catch (exception) {
-    console.warn(exception)
-    return err ?? (exception as Error)
-  }
-}
-
-function toNumber(v: any, fallback: number = 0): number {
+export function toNumber(v: any, fallback: number = 0): number {
   if (typeof v === "number") {
     return isNaN(v) ? fallback : v
   }
@@ -227,7 +231,7 @@ function toNumber(v: any, fallback: number = 0): number {
   return fallback
 }
 
-function toBoolean(v: TExprScalar): boolean {
+export function toBoolean(v: TExprScalar): boolean {
   if (!v) {
     return false
   }
@@ -243,7 +247,7 @@ function toBoolean(v: TExprScalar): boolean {
   return true
 }
 
-function toString(v: TExprScalar, radix: number = 10): string {
+export function toString(v: TExprScalar, radix: number = 10): string {
   if (typeof v === "number") {
     return v.toString(radix)
   }
@@ -256,7 +260,7 @@ function toString(v: TExprScalar, radix: number = 10): string {
   return v + ""
 }
 
-function toDecimal(n: TExprScalar): Decimal {
+export function toDecimal(n: TExprScalar): Decimal {
   if (!n) {
     return new Decimal(0)
   }
