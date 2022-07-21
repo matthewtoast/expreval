@@ -3,16 +3,20 @@ import Decimal from 'decimal.js'
 
 export type DictOf<T> = { [key: string]: T }
 export type TExprScalar = number | string | boolean | null
-export type TExprFunc = (ctx: TExprContext, ...args: TExprScalar[]) => Promise<TExprScalar>
+export type TExprFuncAsync = (ctx: TExprContext, ...args: TExprScalar[]) => Promise<TExprScalar>
+export type TExprFuncSync = (ctx: TExprContext, ...args: TExprScalar[]) => TExprScalar
 export type TExprFuncDef = {
-  f: TExprFunc
+  async: true
+  f: TExprFuncAsync
+} | {
+  async?: false
+  f: TExprFuncSync
 }
 
 export type TExprContext = {
   rng: () => number
   funcs: DictOf<TExprFuncDef>
   vars: DictOf<TExprScalar>
-  consts: DictOf<TExprScalar>
   binops: DictOf<string>
   unops: DictOf<string>
 }
@@ -123,28 +127,26 @@ const BinaryOperatorPrecedence = [
   /^\|(?!\|)/,
   "&&",
   "||",
+  // Any(":=", "+=", "-=", "*=", "/=")
 ]
 
 export function createExprContext({
   funcs,
   vars,
-  consts,
   binops,
   unops,
   seed = "expreval",
 }: {
   funcs?: DictOf<TExprFuncDef>,
   vars?: DictOf<TExprScalar>,
-  consts?: DictOf<TExprScalar>,
   binops?: DictOf<string>,
   unops?: DictOf<string>,
   seed?: string
 }): TExprContext {
   return {
     rng: seedrandom.default(seed),
-    vars: { ...vars },
+    vars: { ...CONSTS, ...vars },
     funcs: { ...STDLIB, ...funcs },
-    consts: { ...CONSTS, ...consts },
     binops: {...BINOP_MAP, ...binops},
     unops: {...UNOP_MAP, ...unops},
   }
@@ -169,15 +171,15 @@ export async function executeExpr(ast: TExpression, ctx: TExprContext = createEx
       if (Object.keys(ctx.vars).includes(ast.name)) {
         return ctx.vars[ast.name]!
       }
-      if (Object.keys(ctx.consts).includes(ast.name)) {
-        return ctx.consts[ast.name]!
-      }
       return ast.name
     case "CallExpression":
-      const func = Object.keys(ctx.funcs).includes(ast.callee.name) ? ctx.funcs[ast.callee.name] : null
-      if (func && typeof func.f === "function") {
-        const args = await asyncMap(ast.arguments, async (expr) => executeExpr(expr, ctx))
-        return await func.f(ctx, ...args)
+      const fdef = Object.keys(ctx.funcs).includes(ast.callee.name) ? ctx.funcs[ast.callee.name] : null
+      if (fdef) {
+        const args = await asyncMap(ast.arguments, async (expr) => await executeExpr(expr, ctx))
+        if (fdef.async) {
+          return await fdef.f(ctx, ...args)
+        }
+        return fdef.f(ctx, ...args)
       }
       throw new Error(`Function not found: '${ast.callee.name}'`)
     case "BinaryExpression":
@@ -290,12 +292,12 @@ async function asyncMap<V, T>(
 
 export const STDLIB: DictOf<TExprFuncDef> = {
   unixTimestampNow: {
-    async f() {
+    f() {
       return Date.now()
     },
   },
   unixTimestampForDate: {
-    async f(ctx, year, mon, day, hour, min, second) {
+    f(ctx, year, mon, day, hour, min, second) {
       return new Date(
         toNumber(year),
         toNumber(mon),
@@ -308,7 +310,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
 
   all: {
-    async f(ctx, ...xs) {
+    f(ctx, ...xs) {
       for (let i = 0; i < xs.length; i++) {
         if (!xs[i]) {
           return false
@@ -318,7 +320,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   any: {
-    async f(ctx, ...xs) {
+    f(ctx, ...xs) {
       for (let i = 0; i < xs.length; i++) {
         if (xs[i]) {
           return true
@@ -328,80 +330,80 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   some: {
-    async f(ctx, ...xs) {
-      return STDLIB["any"]!.f(ctx, ...xs)
+    f(ctx, ...xs) {
+      return !!STDLIB["any"]!.f(ctx, ...xs)
     },
   },
   none: {
-    async f(ctx, ...xs) {
+    f(ctx, ...xs) {
       return !STDLIB["any"]!.f(ctx, ...xs)
     },
   },
 
   or: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toBoolean(a) || toBoolean(b)
     },
   },
   and: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toBoolean(a) && toBoolean(b)
     },
   },
   not: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return !toBoolean(a)
     },
   },
 
   gt: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).gt(toDecimal(b))
     },
   },
   gte: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).gte(toDecimal(b))
     },
   },
   lt: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).lt(toDecimal(b))
     },
   },
   lte: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).lte(toDecimal(b))
     },
   },
   eq: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a) === toString(b)
     },
   },
   neq: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a) !== toString(b)
     },
   },
 
   rand: {
-    async f(ctx) {
+    f(ctx) {
       return ctx.rng()
     },
   },
   randInRange: {
-    async f(ctx, min, max) {
+    f(ctx, min, max) {
       return ctx.rng() * (Number(max) - Number(min)) + Number(min)
     },
   },
   randInt: {
-    async f(ctx) {
+    f(ctx) {
       return Math.floor(ctx.rng() * 10)
     },
   },
   randIntInRange: {
-    async f(ctx, min, max) {
+    f(ctx, min, max) {
       min = Math.ceil(Number(min))
       max = Math.floor(Number(max))
       return Math.floor(ctx.rng() * (max - min + 1)) + min
@@ -409,364 +411,364 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
 
   number: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Number(a)
     },
   },
   bitwiseOr: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return Number(a) | Number(b)
     },
   },
   bitwiseXor: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return Number(a) ^ Number(b)
     },
   },
   bitwiseAnd: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return Number(a) & Number(b)
     },
   },
   bitwiseNot: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return ~Number(a)
     },
   },
   bitwiseLeftShift: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return Number(a) << Number(b)
     },
   },
   bitwiseRightShift: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return Number(a) >> Number(b)
     },
   },
   bitwiseRightshiftUnsigned: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return Number(a) >>> Number(b)
     },
   },
   negate: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return toDecimal(a).neg().toString()
     },
   },
   add: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).add(toDecimal(b)).toString()
     },
   },
   sub: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).sub(toDecimal(b)).toString()
     },
   },
   div: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).div(toDecimal(b)).toString()
     },
   },
   mul: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).mul(toDecimal(b)).toString()
     },
   },
   mod: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).mod(toDecimal(b)).toString()
     },
   },
   pow: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toDecimal(a).pow(toDecimal(b)).toString()
     },
   },
 
   abs: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.abs(toDecimal(a)).toString()
     },
   },
   acos: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.acos(toDecimal(a)).toString()
     },
   },
   acosh: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.acosh(toDecimal(a)).toString()
     },
   },
   asin: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.asin(toDecimal(a)).toString()
     },
   },
   asinh: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.asinh(toDecimal(a)).toString()
     },
   },
   atan: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.atan(toDecimal(a)).toString()
     },
   },
   atan2: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return Decimal.atan2(toDecimal(a), toDecimal(b)).toString()
     },
   },
   atanh: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.atanh(toDecimal(a)).toString()
     },
   },
   cbrt: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.cbrt(toDecimal(a)).toString()
     },
   },
   ceil: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.ceil(toDecimal(a)).toString()
     },
   },
   cos: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.cos(toDecimal(a)).toString()
     },
   },
   cosh: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.cosh(toDecimal(a)).toString()
     },
   },
   exp: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.exp(toDecimal(a)).toString()
     },
   },
   floor: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.floor(toDecimal(a)).toString()
     },
   },
   hypot: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.hypot(toDecimal(a)).toString()
     },
   },
   log: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.log(toDecimal(a)).toString()
     },
   },
   log10: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.log10(toDecimal(a)).toString()
     },
   },
   log2: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.log2(toDecimal(a)).toString()
     },
   },
   max: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.max(toDecimal(a)).toString()
     },
   },
   min: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.min(toDecimal(a)).toString()
     },
   },
   round: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.round(toDecimal(a)).toString()
     },
   },
   sign: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.sign(toDecimal(a)).toString()
     },
   },
   sin: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.sin(toDecimal(a)).toString()
     },
   },
   sinh: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.sinh(toDecimal(a)).toString()
     },
   },
   sqrt: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.sqrt(toDecimal(a)).toString()
     },
   },
   tan: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.tan(toDecimal(a)).toString()
     },
   },
   tanh: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.tanh(toDecimal(a)).toString()
     },
   },
   trunc: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return Decimal.trunc(toDecimal(a)).toString()
     },
   },
 
   fromCharCode: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return String.fromCharCode(Number(a))
     },
   },
   fromCodePoint: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return String.fromCodePoint(Number(a))
     },
   },
   parseInt: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return parseInt(toString(a), Number(b))
     },
   },
   parseFloat: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return parseFloat(toString(a))
     },
   },
   length: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return toString(a).length
     },
   },
   charAt: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).charAt(Number(b))
     },
   },
   charCodeAt: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).charCodeAt(Number(b))
     },
   },
   codePointAt: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).codePointAt(Number(b)) ?? 0
     },
   },
   concat: {
-    async f(ctx, ...ss) {
+    f(ctx, ...ss) {
       return "".concat(...ss.map((s) => toString(s)))
     },
   },
   endsWith: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).endsWith(toString(b))
     },
   },
   includes: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).includes(toString(b))
     },
   },
   indexOf: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).indexOf(toString(b))
     },
   },
   lastIndexOf: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).lastIndexOf(toString(b))
     },
   },
   localeCompare: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).localeCompare(toString(b))
     },
   },
   match: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return !!toString(a).match(toString(b))
     },
   },
   matchAll: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return !!toString(a).match(toString(b))
     },
   },
   padEnd: {
-    async f(ctx, a, b, c) {
+    f(ctx, a, b, c) {
       return toString(a).padEnd(Number(b), toString(c ?? ""))
     },
   },
   padStart: {
-    async f(ctx, a, b, c) {
+    f(ctx, a, b, c) {
       return toString(a).padStart(Number(b), toString(c ?? ""))
     },
   },
   repeat: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).repeat(Number(b))
     },
   },
   replace: {
-    async f(ctx, a, b, c) {
+    f(ctx, a, b, c) {
       return toString(a).replace(toString(b), toString(c))
     },
   },
   replaceAll: {
-    async f(ctx, a, b, c) {
+    f(ctx, a, b, c) {
       return toString(a).replaceAll(toString(b), toString(c))
     },
   },
   slice: {
-    async f(ctx, a, b, c) {
+    f(ctx, a, b, c) {
       return toString(a).slice(Number(b), Number(c ?? toString(a).length))
     },
   },
   startsWith: {
-    async f(ctx, a, b) {
+    f(ctx, a, b) {
       return toString(a).startsWith(toString(b))
     },
   },
   substring: {
-    async f(ctx, a, b, c) {
+    f(ctx, a, b, c) {
       return toString(a).substring(Number(b), Number(c))
     },
   },
   toLowerCase: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return toString(a).toLowerCase()
     },
   },
   toUpperCase: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return toString(a).toUpperCase()
     },
   },
   trim: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return toString(a).trim()
     },
   },
   trimEnd: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return toString(a).trimEnd()
     },
   },
   trimStart: {
-    async f(ctx, a) {
+    f(ctx, a) {
       return toString(a).trimStart()
     },
   },
