@@ -70,9 +70,9 @@ export type TLiteralExpression = {
 
 export type TConditionalExpression = {
   type: "ConditionalExpression"
-  left: TExpression
-  operator: string
-  right: TExpression
+  test: TExpression
+  consequent: TExpression
+  alternate: TExpression
 }
 
 export type TUnaryExpression = {
@@ -213,7 +213,6 @@ export async function executeAst(ast: TExpression, ctx: TExprContext = createExp
       }
       throw new Error(`Function not found: '${ast.callee.name}'`)
     case "BinaryExpression":
-    case "ConditionalExpression":
       const binop = Object.keys(ctx.binops).includes(ast.operator) ? ctx.binops[ast.operator] : null
       if (binop) {
         return executeAst(
@@ -229,6 +228,12 @@ export async function executeAst(ast: TExpression, ctx: TExprContext = createExp
         )
       }
       throw new Error(`Operator not found: '${ast.operator}'`)
+    case "ConditionalExpression":
+      const result = await executeAst(ast.test, ctx)
+      if (toBoolean(result)) {
+        return await executeAst(ast.consequent, ctx)
+      }
+      return await executeAst(ast.alternate, ctx)
     case "UnaryExpression":
       const unop = Object.keys(ctx.unops).includes(ast.operator) ? ctx.unops[ast.operator] : null
       if (unop) {
