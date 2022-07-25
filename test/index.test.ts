@@ -6,9 +6,9 @@ describe('evalexpr', () => {
     expect((await evaluateExpr('1 > 2')).result).toBe(false)
     expect((await evaluateExpr(`
       do(
-        a := 1,
-        a += 2,
-        a - 8
+        a := 1,//
+        a += 2, // comment
+        a - 8//comment2
       )
     `)).result).toBe("-5")
   });

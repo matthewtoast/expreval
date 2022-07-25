@@ -41,7 +41,7 @@ export type TExpression =
   | TIdentifierExpression
   | TBinaryExpression
   | TLiteralExpression
-  | TConditionalExpression
+  | TTernaryExpression
   | TUnaryExpression
 
 export type TCallExpression = {
@@ -68,8 +68,8 @@ export type TLiteralExpression = {
   raw: string
 }
 
-export type TConditionalExpression = {
-  type: "ConditionalExpression"
+export type TTernaryExpression = {
+  type: "TernaryExpression"
   test: TExpression
   consequent: TExpression
   alternate: TExpression
@@ -183,7 +183,7 @@ export default evaluateExpr
 
 export function parseExpr(code: string): TExpression {
   const parser = Parser(DefaultGrammar)
-  return parser(code)
+  return parser(code.replace(/\/\/.*\n/g, ''))
 }
 
 export async function executeAst(ast: TExpression, ctx: TExprContext = createExprContext({})): Promise<TExprScalar> {
@@ -228,7 +228,7 @@ export async function executeAst(ast: TExpression, ctx: TExprContext = createExp
         )
       }
       throw new Error(`Operator not found: '${ast.operator}'`)
-    case "ConditionalExpression":
+    case "TernaryExpression":
       const result = await executeAst(ast.test, ctx)
       if (toBoolean(result)) {
         return await executeAst(ast.consequent, ctx)
@@ -333,7 +333,11 @@ async function asyncMap<V, T>(
 }
 
 function setVar<T extends TExprScalar>(ctx: TExprContext, name: any, value: T): T {
-  ctx.vars[name + ""] = value
+  const key = toString(name)
+  if (key.match(/^__proto__|prototype|constructor$/)) {
+    return value
+  }
+  ctx.vars[key] = value
   return value
 }
 
@@ -1148,11 +1152,11 @@ const DefaultGrammar = IgnoreWhitespace(
       (Expr, BinaryOp) => Node(All(Expr, Star(All(Operator(BinaryOp), Expr))), associativity(BinaryOp)),
       UnaryExpression
     )
-    const ConditionalExpression = Node(
+    const TernaryExpression = Node(
       All(LogicalExpressionOrExpression, Optional(All("?", Expression, ":", Expression))),
       ([test, consequent, alternate]) =>
-        consequent ? { type: "ConditionalExpression", test, consequent, alternate } : test
+        consequent ? { type: "TernaryExpression", test, consequent, alternate } : test
     )
-    return Node(Any(ConditionalExpression), ([expr], $, $next) => srcMap(expr, $, $next))
+    return Node(Any(TernaryExpression), ([expr], $, $next) => srcMap(expr, $, $next))
   })
 )
