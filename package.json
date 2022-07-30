@@ -1,5 +1,5 @@
 {
-  "name": "awne",
+  "name": "expreval",
   "version": "0.0.0",
   "description": "",
   "cdn": "dist/index.umd.js",
@@ -49,7 +49,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/matthewtoast/awne.git"
+    "url": "git+https://github.com/matthewtoast/expreval.git"
   },
   "keywords": [],
   "author": {
@@ -57,9 +57,9 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/matthewtoast/awne/issues"
+    "url": "https://github.com/matthewtoast/expreval/issues"
   },
-  "homepage": "https://github.com/matthewtoast/awne#readme",
+  "homepage": "https://github.com/matthewtoast/expreval#readme",
   "dependencies": {
     "@types/seedrandom": "^3.0.2",
     "decimal.js": "^10.3.1",

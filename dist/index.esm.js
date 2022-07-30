@@ -1,5 +1,5 @@
 /*!
- * awne v0.0.0
+ * expreval v0.0.0
  * (c) Matthew Trost
  * Released under the MIT License.
  */

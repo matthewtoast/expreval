@@ -1,5 +1,5 @@
 /*!
- * awne v0.0.0
+ * expreval v0.0.0
  * (c) Matthew Trost
  * Released under the MIT License.
  */
@@ -7,7 +7,7 @@
 (function (global, factory) {
     typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('seedrandom'), require('decimal.js')) :
     typeof define === 'function' && define.amd ? define(['exports', 'seedrandom', 'decimal.js'], factory) :
-    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.awne = {}, global.seedrandom, global.Decimal));
+    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.expreval = {}, global.seedrandom, global.Decimal));
 })(this, (function (exports, seedrandom, Decimal) { 'use strict';
 
     function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
