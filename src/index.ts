@@ -34,6 +34,7 @@ export type TExprContext = {
   vars: DictOf<TExprScalar>
   binops: DictOf<TBinopDef>
   unops: DictOf<TUnopDef>
+  heap: DictOf<any>
 }
 
 export type TExpression =
@@ -43,6 +44,14 @@ export type TExpression =
   | TLiteralExpression
   | TTernaryExpression
   | TUnaryExpression
+  | TTemplateLiteralExpression
+
+export type TTemplateLiteralExpression = {
+  type: 'TemplateLiteral'
+  parts: [
+    ['chunks', string]|['expression', TExpression]
+  ]
+}
 
 export type TCallExpression = {
   type: "CallExpression"
@@ -135,6 +144,7 @@ const NumericToken = Any(/^((?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][-+]?[0-9]+)?)\b/
 const NullToken = /^(null)\b/
 const BooleanToken = /^(true|false)\b/
 const IdentifierToken = /^([a-zA-Z_$][a-zA-Z0-9_$]*)/
+const InterpolationChunkToken = /^((?:\$(?!{)|\\.|[^`$\\])+)/;
 const BinaryOperatorPrecedence = [
   "**",
   Any("*", "/", "%"),
@@ -155,6 +165,7 @@ export function createExprContext({
   vars,
   binops,
   unops,
+  heap = {},
   seed = "expreval",
 }: {
   funcs?: DictOf<TExprFuncDef>,
@@ -162,6 +173,7 @@ export function createExprContext({
   binops?: DictOf<string>,
   unops?: DictOf<string>,
   seed?: string
+  heap?: DictOf<any>,
 }): TExprContext {
   return {
     rng: seedrandom.default(seed),
@@ -169,6 +181,7 @@ export function createExprContext({
     funcs: { ...STDLIB, ...funcs },
     binops: {...BINOP_MAP, ...binops},
     unops: {...UNOP_MAP, ...unops},
+    heap,
   }
 }
 
@@ -250,6 +263,17 @@ export async function executeAst(ast: TExpression, ctx: TExprContext = createExp
         )
       }
       throw new Error(`Operator not found: '${ast.operator}'`)
+    case "TemplateLiteral":
+      let accum = ''
+      for (let i = 0; i < ast.parts.length; i++) {
+        const [kind, value] = ast.parts[i]!
+        if (kind === 'chunks') {
+          accum += value
+        } else if (kind === 'expression') {
+          accum += (await executeAst(value, ctx) + '')
+        }
+      }
+      return accum
     default:
       throw new Error(`Syntax error`)
   }
@@ -320,6 +344,34 @@ export function toDecimal(n: TExprScalar): Decimal {
   return new Decimal(n)
 }
 
+export function toScalar(n: any, radix: number = 10): TExprScalar {
+  if (n instanceof Decimal) {
+    return n.toString()
+  }
+  if (typeof n === 'number') {
+    return n.toString(radix)
+  }
+  if (typeof n === 'string') {
+    return n
+  }
+  if (typeof n === 'boolean') {
+    return n
+  }
+  if (!n) {
+    return null
+  }
+  return n + ''
+}
+
+function interp(ctx: TExprContext, s): string {
+  s = toString(s)
+  for (const key in ctx.vars) {
+    const local = `{${key}}`
+    s = s.replaceAll(local, ctx.vars[key] + '')
+  }
+  return s
+}
+
 async function asyncMap<V, T>(
   array: V[],
   callback: (el: V, idx: number, arr: V[]) => Promise<T>
@@ -349,6 +401,48 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   do: {
     f(ctx, ...args) {
       return args[args.length - 1] ?? null
+    }
+  },
+
+  deep: {
+    f(ctx, key) {
+      return toScalar(deep(ctx.heap, toString(key), ''))
+    }
+  },
+
+  present: {
+    f(ctx, v) {
+      return !!v
+    }
+  },
+  empty: {
+    f(ctx, v) {
+      return !v
+    }
+  },
+  blank: {
+    f(ctx, v) {
+      if (typeof v === 'string' && (!v || v.match(/^\s+$/))) {
+        return true
+      }
+      return !v
+    }
+  },
+
+  s: {
+    f(ctx, ...ss) {
+      return ss.map((s) => interp(ctx, s)).join('')
+    }
+  },
+  n: {
+    f(ctx, n) {
+      return Number(n)
+    }
+  },
+
+  join: {
+    f(ctx, spacer, ...ss) {
+      return ss.map((s) => interp(ctx, s)).join(toString(spacer))
     }
   },
 
@@ -1125,7 +1219,11 @@ const DefaultGrammar = IgnoreWhitespace(
       value: raw === "true",
       raw,
     }))
-    const Literal = Any(StringLiteral, NumericLiteral, NullLiteral, BooleanLiteral)
+    const InterpolationChunk = Node(InterpolationChunkToken, ([raw]) => ['chunks', raw]);
+    const TemplateInlineExpression = Node(All('${', IgnoreWhitespace(Expression), '}'), ([expression]) => ['expression', expression]);
+    const TemplateLiteral = Node(Ignore(null, All('`', Star(Any(InterpolationChunk, TemplateInlineExpression)), '`')),
+      parts => ({ type: 'TemplateLiteral', parts }));
+    const Literal = Any(StringLiteral, NumericLiteral, NullLiteral, BooleanLiteral, TemplateLiteral)
     const ArgumentsList = All(Expression, Star(All(",", Expression)))
     const Arguments = Node(All("(", Optional(All(ArgumentsList, Optional(","))), ")"), (args) => ({
       args,
@@ -1160,3 +1258,21 @@ const DefaultGrammar = IgnoreWhitespace(
     return Node(Any(TernaryExpression), ([expr], $, $next) => srcMap(expr, $, $next))
   })
 )
+
+export function deep<T>(obj: any, query: string|string[], fallback: T): T {
+  if (!obj) {
+    return fallback
+  }
+  const path = query = Array.isArray(query) ? query : query.replace(/(\[(\d)\])/g, '.$2').replace(/^\./, '').split('.');
+  if (path.length < 1) {
+    return fallback
+  }
+  if (!(path[0]! in obj)) {
+    return fallback;
+  }
+  obj = obj[path[0]!];
+  if (obj && query.length > 1) {
+    return deep(obj, query.slice(1), fallback);
+  }
+  return obj;
+}

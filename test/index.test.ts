@@ -1,4 +1,4 @@
-import { evaluateExpr } from "../src";
+import { createExprContext, evaluateExpr } from "../src";
 
 describe('evalexpr', () => {
   it('evalexpr', async () => {
@@ -11,5 +11,17 @@ describe('evalexpr', () => {
         a - 8//comment2
       )
     `)).result).toBe("-5")
+
+    const t1 = await evaluateExpr("`foo${1 + 2}bar${`moo${3+4}`}`")
+    expect(t1.result).toBe("foo3barmoo7")
+
+    const t2 = await evaluateExpr(`
+        deep("moo.ma.mee")
+    `, createExprContext({
+      heap: {
+        moo: {ma: {mee: 6790}}
+      }
+    }))
+    expect(t2.result).toBe("6790")
   });
 });
