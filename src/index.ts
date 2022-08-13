@@ -1,5 +1,4 @@
 import * as seedrandom from "seedrandom"
-import Decimal from 'decimal.js'
 
 export type DictOf<T> = { [key: string]: T }
 export type TExprScalar = number | string | boolean | null
@@ -31,10 +30,10 @@ export type TExprResult = {
 export type TExprContext = {
   rng: () => number
   funcs: DictOf<TExprFuncDef>
-  vars: DictOf<TExprScalar>
   binops: DictOf<TBinopDef>
   unops: DictOf<TUnopDef>
-  heap: DictOf<any>
+  get: (key: string) => Promise<TExprScalar>
+  set: (key: string, value: TExprScalar) => Promise<void>
 }
 
 export type TExpression =
@@ -124,7 +123,7 @@ const BINOP_MAP = {
   "|": {alias: "bitwiseOr"},
   "&&": {alias: "and"},
   "||": {alias: "or"},
-  ":=": {alias: "set"},
+  ":=": {alias: "setVar"},
   "+=": {alias: "setAdd"},
   "-=": {alias: "setSub"},
   "/=": {alias: "setDiv"},
@@ -143,7 +142,7 @@ const QuoteToken = Any(/^('[^'\\]*(?:\\.[^'\\]*)*')/, /^("[^"\\]*(?:\\.[^"\\]*)*
 const NumericToken = Any(/^((?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][-+]?[0-9]+)?)\b/, /^(0[xX][0-9a-fA-F]+)\b/)
 const NullToken = /^(null)\b/
 const BooleanToken = /^(true|false)\b/
-const IdentifierToken = /^([a-zA-Z_$][a-zA-Z0-9_$]*)/
+const IdentifierToken = /^([a-zA-Z_$][a-zA-Z0-9_$.]*)/
 const InterpolationChunkToken = /^((?:\$(?!{)|\\.|[^`$\\])+)/;
 const BinaryOperatorPrecedence = [
   "**",
@@ -160,28 +159,41 @@ const BinaryOperatorPrecedence = [
   Any(":=", "+=", "-=", "*=", "/=")
 ]
 
+const INVALID_IDENT_REGEX = /^__proto__|prototype|constructor$/
+
 export function createExprContext({
   funcs,
-  vars,
   binops,
   unops,
-  heap = {},
   seed = "expreval",
-}: {
-  funcs?: DictOf<TExprFuncDef>,
-  vars?: DictOf<TExprScalar>,
-  binops?: DictOf<string>,
-  unops?: DictOf<string>,
-  seed?: string
-  heap?: DictOf<any>,
-}): TExprContext {
+  get,
+  set,
+}: Partial<TExprContext> & {seed?: string}): TExprContext {
+  const vars: {[key: string]: TExprScalar} = {}
   return {
     rng: seedrandom.default(seed),
-    vars: { ...CONSTS, ...vars },
     funcs: { ...STDLIB, ...funcs },
     binops: {...BINOP_MAP, ...binops},
     unops: {...UNOP_MAP, ...unops},
-    heap,
+    get: async (name) => {
+      if (name.match(INVALID_IDENT_REGEX)) {
+        return 0
+      }
+      if (get) {
+        return await get(name) ?? null
+      }
+      return vars[name] ?? null
+    },
+    set: async (name, value) => {
+      if (name.match(INVALID_IDENT_REGEX)) {
+        return
+      }
+      if (set) {
+        return await set(name, value)
+      }
+      vars[name] = value
+      return
+    }
   }
 }
 
@@ -204,10 +216,8 @@ export async function executeAst(ast: TExpression, ctx: TExprContext = createExp
     case "Literal":
       return ast.value
     case "Identifier":
-      if (Object.keys(ctx.vars).includes(ast.name)) {
-        return ctx.vars[ast.name]!
-      }
-      return ast.name
+      const value = await ctx.get(ast.name)
+      return (value !== undefined) ? value : ast.name
     case "CallExpression":
       const fdef = Object.keys(ctx.funcs).includes(ast.callee.name) ? ctx.funcs[ast.callee.name] : null
       if (fdef) {
@@ -328,26 +338,7 @@ export function toString(v: TExprScalar, radix: number = 10): string {
   return v + ""
 }
 
-export function toDecimal(n: TExprScalar): Decimal {
-  if (!n) {
-    return new Decimal(0)
-  }
-  if (n === true) {
-    return new Decimal(1)
-  }
-  if (typeof n === "number") {
-    return new Decimal(n)
-  }
-  if (!toBoolean(n)) {
-    return new Decimal(0)
-  }
-  return new Decimal(n)
-}
-
 export function toScalar(n: any, radix: number = 10): TExprScalar {
-  if (n instanceof Decimal) {
-    return n.toString()
-  }
   if (typeof n === 'number') {
     return n.toString(radix)
   }
@@ -363,15 +354,6 @@ export function toScalar(n: any, radix: number = 10): TExprScalar {
   return n + ''
 }
 
-function interp(ctx: TExprContext, s): string {
-  s = toString(s)
-  for (const key in ctx.vars) {
-    const local = `{${key}}`
-    s = s.replaceAll(local, ctx.vars[key] + '')
-  }
-  return s
-}
-
 async function asyncMap<V, T>(
   array: V[],
   callback: (el: V, idx: number, arr: V[]) => Promise<T>
@@ -384,29 +366,20 @@ async function asyncMap<V, T>(
   return out
 }
 
-function setVar<T extends TExprScalar>(ctx: TExprContext, name: any, value: T): T {
+async function setVar<T extends TExprScalar>(ctx: TExprContext, name: any, value: T): Promise<T> {
   const key = toString(name)
-  if (key.match(/^__proto__|prototype|constructor$/)) {
-    return value
-  }
-  ctx.vars[key] = value
+  await ctx.set(key, value)
   return value
 }
 
-function toVar(ctx: TExprContext, name: any): TExprScalar {
-  return ctx.vars[name + ""] ?? null
+async function getVar(ctx: TExprContext, name: any): Promise<TExprScalar> {
+  return (await ctx.get(name + "")) ?? null
 }
 
 export const STDLIB: DictOf<TExprFuncDef> = {
   do: {
     f(ctx, ...args) {
       return args[args.length - 1] ?? null
-    }
-  },
-
-  deep: {
-    f(ctx, key) {
-      return toScalar(deep(ctx.heap, toString(key), ''))
     }
   },
 
@@ -429,51 +402,49 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     }
   },
 
-  s: {
-    f(ctx, ...ss) {
-      return ss.map((s) => interp(ctx, s)).join('')
-    }
-  },
-  n: {
-    f(ctx, n) {
-      return Number(n)
-    }
-  },
-
   join: {
     f(ctx, spacer, ...ss) {
-      return ss.map((s) => interp(ctx, s)).join(toString(spacer))
+      return ss.join(toString(spacer))
     }
   },
 
-  set: {
+  setVar: {
     assignment: true,
-    f(ctx, left, right) {
-      return setVar(ctx, left, right)
+    async: true,
+    async f(ctx, left, right) {
+      return await setVar(ctx, left, right)
     }
   },
   setAdd: {
     assignment: true,
-    f(ctx, left, right) {
-      return setVar(ctx, left, toNumber(toVar(ctx, left)) + toNumber(right))
+    async: true,
+    async f(ctx, left, right) {
+      const lval = await getVar(ctx, left)
+      if (typeof lval === 'string') {
+        return await setVar(ctx, left, lval + right + "")
+      }
+      return await setVar(ctx, left, toNumber(lval) + toNumber(right))
     }
   },
   setSub: {
     assignment: true,
-    f(ctx, left, right) {
-      return setVar(ctx, left, toNumber(toVar(ctx, left)) - toNumber(right))
+    async: true,
+    async f(ctx, left, right) {
+      return await setVar(ctx, left, toNumber(await getVar(ctx, left)) - toNumber(right))
     }
   },
   setMul: {
     assignment: true,
-    f(ctx, left, right) {
-      return setVar(ctx, left, toNumber(toVar(ctx, left)) * toNumber(right))
+    async: true,
+    async f(ctx, left, right) {
+      return await setVar(ctx, left, toNumber(await getVar(ctx, left)) * toNumber(right))
     }
   },
   setDiv: {
     assignment: true,
-    f(ctx, left, right) {
-      return setVar(ctx, left, toNumber(toVar(ctx, left)) / toNumber(right))
+    async: true,
+    async f(ctx, left, right) {
+      return await setVar(ctx, left, toNumber(await getVar(ctx, left)) / toNumber(right))
     }
   },
 
@@ -544,22 +515,22 @@ export const STDLIB: DictOf<TExprFuncDef> = {
 
   gt: {
     f(ctx, a, b) {
-      return toDecimal(a).gt(toDecimal(b))
+      return toNumber(a) > toNumber(b)
     },
   },
   gte: {
     f(ctx, a, b) {
-      return toDecimal(a).gte(toDecimal(b))
+      return toNumber(a) > toNumber(b)
     },
   },
   lt: {
     f(ctx, a, b) {
-      return toDecimal(a).lt(toDecimal(b))
+      return toNumber(a) > toNumber(b)
     },
   },
   lte: {
     f(ctx, a, b) {
-      return toDecimal(a).lte(toDecimal(b))
+      return toNumber(a) > toNumber(b)
     },
   },
   eq: {
@@ -638,178 +609,181 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
   negate: {
     f(ctx, a) {
-      return toDecimal(a).neg().toFixed()
+      return -toNumber(a)
     },
   },
   add: {
     f(ctx, a, b) {
-      return toDecimal(a).add(toDecimal(b)).toFixed()
+      if (typeof a === 'string') {
+        return a + b + ""
+      }
+      return toNumber(a) + toNumber(b)
     },
   },
   sub: {
     f(ctx, a, b) {
-      return toDecimal(a).sub(toDecimal(b)).toFixed()
+      return toNumber(a) - toNumber(b)
     },
   },
   div: {
     f(ctx, a, b) {
-      return toDecimal(a).div(toDecimal(b)).toFixed()
+      return toNumber(a) / toNumber(b)
     },
   },
   mul: {
     f(ctx, a, b) {
-      return toDecimal(a).mul(toDecimal(b)).toFixed()
+      return toNumber(a) * toNumber(b)
     },
   },
   mod: {
     f(ctx, a, b) {
-      return toDecimal(a).mod(toDecimal(b)).toFixed()
+      return toNumber(a) % toNumber(b)
     },
   },
   pow: {
     f(ctx, a, b) {
-      return toDecimal(a).pow(toDecimal(b)).toFixed()
+      return Math.pow(toNumber(a), toNumber(b))
     },
   },
 
   abs: {
     f(ctx, a) {
-      return Decimal.abs(toDecimal(a)).toFixed()
+      return Math.abs(toNumber(a))
     },
   },
   acos: {
     f(ctx, a) {
-      return Decimal.acos(toDecimal(a)).toFixed()
+      return Math.acos(toNumber(a))
     },
   },
   acosh: {
     f(ctx, a) {
-      return Decimal.acosh(toDecimal(a)).toFixed()
+      return Math.acosh(toNumber(a))
     },
   },
   asin: {
     f(ctx, a) {
-      return Decimal.asin(toDecimal(a)).toFixed()
+      return Math.asin(toNumber(a))
     },
   },
   asinh: {
     f(ctx, a) {
-      return Decimal.asinh(toDecimal(a)).toFixed()
+      return Math.asinh(toNumber(a))
     },
   },
   atan: {
     f(ctx, a) {
-      return Decimal.atan(toDecimal(a)).toFixed()
+      return Math.atan(toNumber(a))
     },
   },
   atan2: {
     f(ctx, a, b) {
-      return Decimal.atan2(toDecimal(a), toDecimal(b)).toFixed()
+      return Math.atan2(toNumber(a), toNumber(b))
     },
   },
   atanh: {
     f(ctx, a) {
-      return Decimal.atanh(toDecimal(a)).toFixed()
+      return Math.atanh(toNumber(a))
     },
   },
   cbrt: {
     f(ctx, a) {
-      return Decimal.cbrt(toDecimal(a)).toFixed()
+      return Math.cbrt(toNumber(a))
     },
   },
   ceil: {
     f(ctx, a) {
-      return Decimal.ceil(toDecimal(a)).toFixed()
+      return Math.ceil(toNumber(a))
     },
   },
   cos: {
     f(ctx, a) {
-      return Decimal.cos(toDecimal(a)).toFixed()
+      return Math.cos(toNumber(a))
     },
   },
   cosh: {
     f(ctx, a) {
-      return Decimal.cosh(toDecimal(a)).toFixed()
+      return Math.cosh(toNumber(a))
     },
   },
   exp: {
     f(ctx, a) {
-      return Decimal.exp(toDecimal(a)).toFixed()
+      return Math.exp(toNumber(a))
     },
   },
   floor: {
     f(ctx, a) {
-      return Decimal.floor(toDecimal(a)).toFixed()
+      return Math.floor(toNumber(a))
     },
   },
   hypot: {
     f(ctx, a) {
-      return Decimal.hypot(toDecimal(a)).toFixed()
+      return Math.hypot(toNumber(a))
     },
   },
   log: {
     f(ctx, a) {
-      return Decimal.log(toDecimal(a)).toFixed()
+      return Math.log(toNumber(a))
     },
   },
   log10: {
     f(ctx, a) {
-      return Decimal.log10(toDecimal(a)).toFixed()
+      return Math.log10(toNumber(a))
     },
   },
   log2: {
     f(ctx, a) {
-      return Decimal.log2(toDecimal(a)).toFixed()
+      return Math.log2(toNumber(a))
     },
   },
   max: {
     f(ctx, a) {
-      return Decimal.max(toDecimal(a)).toFixed()
+      return Math.max(toNumber(a))
     },
   },
   min: {
     f(ctx, a) {
-      return Decimal.min(toDecimal(a)).toFixed()
+      return Math.min(toNumber(a))
     },
   },
   round: {
     f(ctx, a) {
-      return Decimal.round(toDecimal(a)).toFixed()
+      return Math.round(toNumber(a))
     },
   },
   sign: {
     f(ctx, a) {
-      return Decimal.sign(toDecimal(a)).toFixed()
+      return Math.sign(toNumber(a))
     },
   },
   sin: {
     f(ctx, a) {
-      return Decimal.sin(toDecimal(a)).toFixed()
+      return Math.sin(toNumber(a))
     },
   },
   sinh: {
     f(ctx, a) {
-      return Decimal.sinh(toDecimal(a)).toFixed()
+      return Math.sinh(toNumber(a))
     },
   },
   sqrt: {
     f(ctx, a) {
-      return Decimal.sqrt(toDecimal(a)).toFixed()
+      return Math.sqrt(toNumber(a))
     },
   },
   tan: {
     f(ctx, a) {
-      return Decimal.tan(toDecimal(a)).toFixed()
+      return Math.tan(toNumber(a))
     },
   },
   tanh: {
     f(ctx, a) {
-      return Decimal.tanh(toDecimal(a)).toFixed()
+      return Math.tanh(toNumber(a))
     },
   },
   trunc: {
     f(ctx, a) {
-      return Decimal.trunc(toDecimal(a)).toFixed()
+      return Math.trunc(toNumber(a))
     },
   },
 
