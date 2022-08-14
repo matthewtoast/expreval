@@ -43,6 +43,7 @@ export type TExprContext = {
   unops: DictOf<TUnopDef>;
   get: (key: string) => Promise<TExprScalar>;
   set: (key: string, value: TExprScalar) => Promise<void>;
+  call?: TExprFuncAsync | undefined;
 };
 
 export type TExpression =
@@ -181,6 +182,7 @@ export function createExprContext({
   seed = 'expreval',
   get,
   set,
+  call,
 }: Partial<TExprContext> & { seed?: string }): TExprContext {
   const vars: { [key: string]: TExprScalar } = {};
   return {
@@ -207,6 +209,7 @@ export function createExprContext({
       vars[name] = value;
       return;
     },
+    call,
   };
 }
 
@@ -241,30 +244,32 @@ export async function executeAst(
       const fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
         ? ctx.funcs[ast.callee.name]
         : null;
+      const args: TExprScalar[] = [];
+      if (fdef && fdef.assignment && ast.arguments.length > 1) {
+        const left = exprToIdentifier(ast.arguments[0]!) ?? '';
+        const right = ast.arguments.slice(1);
+        args.push(
+          left,
+          ...(await asyncMap(
+            right,
+            async (expr) => await executeAst(expr, ctx),
+          )),
+        );
+      } else {
+        args.push(
+          ...(await asyncMap(
+            ast.arguments,
+            async (expr) => await executeAst(expr, ctx),
+          )),
+        );
+      }
       if (fdef) {
-        const args: TExprScalar[] = [];
-        if (fdef.assignment && ast.arguments.length > 1) {
-          const left = exprToIdentifier(ast.arguments[0]!) ?? '';
-          const right = ast.arguments.slice(1);
-          args.push(
-            left,
-            ...(await asyncMap(
-              right,
-              async (expr) => await executeAst(expr, ctx),
-            )),
-          );
-        } else {
-          args.push(
-            ...(await asyncMap(
-              ast.arguments,
-              async (expr) => await executeAst(expr, ctx),
-            )),
-          );
-        }
         if (fdef.async) {
           return await fdef.f(ctx, ...args);
         }
         return fdef.f(ctx, ...args);
+      } else if (ctx.call) {
+        return await ctx.call(ctx, ast.callee.name, ...args);
       }
       throw new Error(`Function not found: '${ast.callee.name}'`);
     case 'BinaryExpression':

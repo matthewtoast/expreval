@@ -9,9 +9,6 @@
 Object.defineProperty(exports, '__esModule', { value: true });
 
 var seedrandom = require('seedrandom');
-var Decimal = require('decimal.js');
-
-function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
 function _interopNamespace(e) {
     if (e && e.__esModule) return e;
@@ -32,7 +29,6 @@ function _interopNamespace(e) {
 }
 
 var seedrandom__namespace = /*#__PURE__*/_interopNamespace(seedrandom);
-var Decimal__default = /*#__PURE__*/_interopDefaultLegacy(Decimal);
 
 /******************************************************************************
 Copyright (c) Microsoft Corporation.
@@ -119,68 +115,103 @@ var CONSTS = {
     SQRT2: Math.SQRT2,
 };
 var BINOP_MAP = {
-    "**": { alias: "pow" },
-    "*": { alias: "mul" },
-    "/": { alias: "div" },
-    "%": { alias: "mod" },
-    "+": { alias: "add" },
-    "-": { alias: "sub" },
-    ">>>": { alias: "bitwiseRightShiftUnsigned" },
-    "<<": { alias: "bitwiseLeftShift" },
-    ">>": { alias: "bitwiseRightShift" },
-    "<=": { alias: "lte" },
-    ">=": { alias: "gte" },
-    "<": { alias: "lt" },
-    ">": { alias: "gt" },
-    "===": { alias: "eq" },
-    "!==": { alias: "neq" },
-    "==": { alias: "eq" },
-    "!=": { alias: "neq" },
-    "&": { alias: "bitwiseAnd" },
-    "^": { alias: "bitwiseXor" },
-    "|": { alias: "bitwiseOr" },
-    "&&": { alias: "and" },
-    "||": { alias: "or" },
-    ":=": { alias: "set" },
-    "+=": { alias: "setAdd" },
-    "-=": { alias: "setSub" },
-    "/=": { alias: "setDiv" },
-    "*=": { alias: "setMul" },
+    '**': { alias: 'pow' },
+    '*': { alias: 'mul' },
+    '/': { alias: 'div' },
+    '%': { alias: 'mod' },
+    '+': { alias: 'add' },
+    '-': { alias: 'sub' },
+    '>>>': { alias: 'bitwiseRightShiftUnsigned' },
+    '<<': { alias: 'bitwiseLeftShift' },
+    '>>': { alias: 'bitwiseRightShift' },
+    '<=': { alias: 'lte' },
+    '>=': { alias: 'gte' },
+    '<': { alias: 'lt' },
+    '>': { alias: 'gt' },
+    '===': { alias: 'eq' },
+    '!==': { alias: 'neq' },
+    '==': { alias: 'eq' },
+    '!=': { alias: 'neq' },
+    '&': { alias: 'bitwiseAnd' },
+    '^': { alias: 'bitwiseXor' },
+    '|': { alias: 'bitwiseOr' },
+    '&&': { alias: 'and' },
+    '||': { alias: 'or' },
+    ':=': { alias: 'setVar' },
+    '+=': { alias: 'setAdd' },
+    '-=': { alias: 'setSub' },
+    '/=': { alias: 'setDiv' },
+    '*=': { alias: 'setMul' },
 };
 var UNOP_MAP = {
-    "+": { alias: "number" },
-    "-": { alias: "negate" },
-    "~": { alias: "bitwiseNot" },
-    "!": { alias: "not" },
+    '+': { alias: 'number' },
+    '-': { alias: 'negate' },
+    '~': { alias: 'bitwiseNot' },
+    '!': { alias: 'not' },
 };
 var IgnoreWhitespace = function (Rule) { return Ignore(/^\s+/, Rule); };
 var QuoteToken = Any(/^('[^'\\]*(?:\\.[^'\\]*)*')/, /^("[^"\\]*(?:\\.[^"\\]*)*")/);
 var NumericToken = Any(/^((?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][-+]?[0-9]+)?)\b/, /^(0[xX][0-9a-fA-F]+)\b/);
 var NullToken = /^(null)\b/;
 var BooleanToken = /^(true|false)\b/;
-var IdentifierToken = /^([a-zA-Z_$][a-zA-Z0-9_$]*)/;
+var IdentifierToken = /^([a-zA-Z_$][a-zA-Z0-9_$.]*)/;
+var InterpolationChunkToken = /^((?:\$(?!{)|\\.|[^`$\\])+)/;
 var BinaryOperatorPrecedence = [
-    "**",
-    Any("*", "/", "%"),
-    Any("+", "-"),
-    Any(">>>", "<<", ">>"),
-    Any("<=", ">=", "<", ">"),
-    Any("===", "!==", "==", "!="),
+    '**',
+    Any('*', '/', '%'),
+    Any('+', '-'),
+    Any('>>>', '<<', '>>'),
+    Any('<=', '>=', '<', '>'),
+    Any('===', '!==', '==', '!='),
     /^&(?!&)/,
-    "^",
+    '^',
     /^\|(?!\|)/,
-    "&&",
-    "||",
-    Any(":=", "+=", "-=", "*=", "/=")
+    '&&',
+    '||',
+    Any(':=', '+=', '-=', '*=', '/='),
 ];
+var INVALID_IDENT_REGEX = /^__proto__|prototype|constructor$/;
 function createExprContext(_a) {
-    var funcs = _a.funcs, vars = _a.vars, binops = _a.binops, unops = _a.unops, _b = _a.seed, seed = _b === void 0 ? "expreval" : _b;
+    var _this = this;
+    var funcs = _a.funcs, binops = _a.binops, unops = _a.unops, _b = _a.seed, seed = _b === void 0 ? 'expreval' : _b, get = _a.get, set = _a.set, call = _a.call;
+    var vars = {};
     return {
         rng: seedrandom__namespace.default(seed),
-        vars: __assign(__assign({}, CONSTS), vars),
         funcs: __assign(__assign({}, STDLIB), funcs),
         binops: __assign(__assign({}, BINOP_MAP), binops),
         unops: __assign(__assign({}, UNOP_MAP), unops),
+        get: function (name) { return __awaiter(_this, void 0, void 0, function () {
+            var _a, _b;
+            return __generator(this, function (_c) {
+                switch (_c.label) {
+                    case 0:
+                        if (name.match(INVALID_IDENT_REGEX)) {
+                            return [2 /*return*/, 0];
+                        }
+                        if (!get) return [3 /*break*/, 2];
+                        return [4 /*yield*/, get(name)];
+                    case 1: return [2 /*return*/, (_a = (_c.sent())) !== null && _a !== void 0 ? _a : null];
+                    case 2: return [2 /*return*/, (_b = vars[name]) !== null && _b !== void 0 ? _b : null];
+                }
+            });
+        }); },
+        set: function (name, value) { return __awaiter(_this, void 0, void 0, function () {
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        if (name.match(INVALID_IDENT_REGEX)) {
+                            return [2 /*return*/];
+                        }
+                        if (!set) return [3 /*break*/, 2];
+                        return [4 /*yield*/, set(name, value)];
+                    case 1: return [2 /*return*/, _a.sent()];
+                    case 2:
+                        vars[name] = value;
+                        return [2 /*return*/];
+                }
+            });
+        }); },
+        call: call,
     };
 }
 function evaluateExpr(code, ctx) {
@@ -207,32 +238,33 @@ function executeAst(ast, ctx) {
     var _a;
     if (ctx === void 0) { ctx = createExprContext({}); }
     return __awaiter(this, void 0, void 0, function () {
-        var _b, fdef, args, left, right, _c, _d, _e, _f, _g, _h, _j, binop, result, unop;
+        var _b, value, fdef, args, left, right, _c, _d, _e, _f, _g, _h, _j, binop, result, unop, accum, i, _k, kind, value_1, _l;
         var _this = this;
-        return __generator(this, function (_k) {
-            switch (_k.label) {
+        return __generator(this, function (_m) {
+            switch (_m.label) {
                 case 0:
                     _b = ast.type;
                     switch (_b) {
-                        case "Literal": return [3 /*break*/, 1];
-                        case "Identifier": return [3 /*break*/, 2];
-                        case "CallExpression": return [3 /*break*/, 3];
-                        case "BinaryExpression": return [3 /*break*/, 11];
-                        case "TernaryExpression": return [3 /*break*/, 12];
-                        case "UnaryExpression": return [3 /*break*/, 17];
+                        case 'Literal': return [3 /*break*/, 1];
+                        case 'Identifier': return [3 /*break*/, 2];
+                        case 'CallExpression': return [3 /*break*/, 4];
+                        case 'BinaryExpression': return [3 /*break*/, 14];
+                        case 'TernaryExpression': return [3 /*break*/, 15];
+                        case 'UnaryExpression': return [3 /*break*/, 20];
+                        case 'TemplateLiteral': return [3 /*break*/, 21];
                     }
-                    return [3 /*break*/, 18];
+                    return [3 /*break*/, 27];
                 case 1: return [2 /*return*/, ast.value];
-                case 2:
-                    if (Object.keys(ctx.vars).includes(ast.name)) {
-                        return [2 /*return*/, ctx.vars[ast.name]];
-                    }
-                    return [2 /*return*/, ast.name];
+                case 2: return [4 /*yield*/, ctx.get(ast.name)];
                 case 3:
-                    fdef = Object.keys(ctx.funcs).includes(ast.callee.name) ? ctx.funcs[ast.callee.name] : null;
-                    if (!fdef) return [3 /*break*/, 10];
+                    value = _m.sent();
+                    return [2 /*return*/, value !== undefined ? value : ast.name];
+                case 4:
+                    fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
+                        ? ctx.funcs[ast.callee.name]
+                        : null;
                     args = [];
-                    if (!(fdef.assignment && ast.arguments.length > 1)) return [3 /*break*/, 5];
+                    if (!(fdef && fdef.assignment && ast.arguments.length > 1)) return [3 /*break*/, 6];
                     left = (_a = exprToIdentifier(ast.arguments[0])) !== null && _a !== void 0 ? _a : '';
                     right = ast.arguments.slice(1);
                     _d = (_c = args.push).apply;
@@ -244,10 +276,10 @@ function executeAst(ast, ctx) {
                                 case 1: return [2 /*return*/, _a.sent()];
                             }
                         }); }); })];
-                case 4:
-                    _d.apply(_c, _e.concat([__spreadArray.apply(void 0, _f.concat([_k.sent(), false]))]));
-                    return [3 /*break*/, 7];
                 case 5:
+                    _d.apply(_c, _e.concat([__spreadArray.apply(void 0, _f.concat([(_m.sent()), false]))]));
+                    return [3 /*break*/, 8];
+                case 6:
                     _h = (_g = args.push).apply;
                     _j = [args];
                     return [4 /*yield*/, asyncMap(ast.arguments, function (expr) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
@@ -256,50 +288,80 @@ function executeAst(ast, ctx) {
                                 case 1: return [2 /*return*/, _a.sent()];
                             }
                         }); }); })];
-                case 6:
-                    _h.apply(_g, _j.concat([_k.sent()]));
-                    _k.label = 7;
                 case 7:
-                    if (!fdef.async) return [3 /*break*/, 9];
+                    _h.apply(_g, _j.concat([(_m.sent())]));
+                    _m.label = 8;
+                case 8:
+                    if (!fdef) return [3 /*break*/, 11];
+                    if (!fdef.async) return [3 /*break*/, 10];
                     return [4 /*yield*/, fdef.f.apply(fdef, __spreadArray([ctx], args, false))];
-                case 8: return [2 /*return*/, _k.sent()];
-                case 9: return [2 /*return*/, fdef.f.apply(fdef, __spreadArray([ctx], args, false))];
-                case 10: throw new Error("Function not found: '".concat(ast.callee.name, "'"));
+                case 9: return [2 /*return*/, _m.sent()];
+                case 10: return [2 /*return*/, fdef.f.apply(fdef, __spreadArray([ctx], args, false))];
                 case 11:
-                    binop = Object.keys(ctx.binops).includes(ast.operator) ? ctx.binops[ast.operator] : null;
+                    if (!ctx.call) return [3 /*break*/, 13];
+                    return [4 /*yield*/, ctx.call.apply(ctx, __spreadArray([ctx, ast.callee.name], args, false))];
+                case 12: return [2 /*return*/, _m.sent()];
+                case 13: throw new Error("Function not found: '".concat(ast.callee.name, "'"));
+                case 14:
+                    binop = Object.keys(ctx.binops).includes(ast.operator)
+                        ? ctx.binops[ast.operator]
+                        : null;
                     if (binop) {
                         return [2 /*return*/, executeAst({
-                                type: "CallExpression",
+                                type: 'CallExpression',
                                 callee: {
                                     name: binop.alias,
-                                    type: "Identifier",
+                                    type: 'Identifier',
                                 },
                                 arguments: [ast.left, ast.right],
                             }, ctx)];
                     }
                     throw new Error("Operator not found: '".concat(ast.operator, "'"));
-                case 12: return [4 /*yield*/, executeAst(ast.test, ctx)];
-                case 13:
-                    result = _k.sent();
-                    if (!toBoolean(result)) return [3 /*break*/, 15];
+                case 15: return [4 /*yield*/, executeAst(ast.test, ctx)];
+                case 16:
+                    result = _m.sent();
+                    if (!toBoolean(result)) return [3 /*break*/, 18];
                     return [4 /*yield*/, executeAst(ast.consequent, ctx)];
-                case 14: return [2 /*return*/, _k.sent()];
-                case 15: return [4 /*yield*/, executeAst(ast.alternate, ctx)];
-                case 16: return [2 /*return*/, _k.sent()];
-                case 17:
-                    unop = Object.keys(ctx.unops).includes(ast.operator) ? ctx.unops[ast.operator] : null;
+                case 17: return [2 /*return*/, _m.sent()];
+                case 18: return [4 /*yield*/, executeAst(ast.alternate, ctx)];
+                case 19: return [2 /*return*/, _m.sent()];
+                case 20:
+                    unop = Object.keys(ctx.unops).includes(ast.operator)
+                        ? ctx.unops[ast.operator]
+                        : null;
                     if (unop) {
                         return [2 /*return*/, executeAst({
-                                type: "CallExpression",
+                                type: 'CallExpression',
                                 callee: {
                                     name: unop.alias,
-                                    type: "Identifier",
+                                    type: 'Identifier',
                                 },
                                 arguments: [ast.argument],
                             }, ctx)];
                     }
                     throw new Error("Operator not found: '".concat(ast.operator, "'"));
-                case 18: throw new Error("Syntax error");
+                case 21:
+                    accum = '';
+                    i = 0;
+                    _m.label = 22;
+                case 22:
+                    if (!(i < ast.parts.length)) return [3 /*break*/, 26];
+                    _k = ast.parts[i], kind = _k[0], value_1 = _k[1];
+                    if (!(kind === 'chunks')) return [3 /*break*/, 23];
+                    accum += value_1;
+                    return [3 /*break*/, 25];
+                case 23:
+                    if (!(kind === 'expression')) return [3 /*break*/, 25];
+                    _l = accum;
+                    return [4 /*yield*/, executeAst(value_1, ctx)];
+                case 24:
+                    accum = _l + ((_m.sent()) + '');
+                    _m.label = 25;
+                case 25:
+                    i++;
+                    return [3 /*break*/, 22];
+                case 26: return [2 /*return*/, accum];
+                case 27: throw new Error("Syntax error");
             }
         });
     });
@@ -312,11 +374,11 @@ function exprToIdentifier(v) {
 }
 function toNumber(v, fallback) {
     if (fallback === void 0) { fallback = 0; }
-    if (typeof v === "number") {
+    if (typeof v === 'number') {
         return isNaN(v) ? fallback : v;
     }
-    if (typeof v === "string") {
-        if (v.includes(".")) {
+    if (typeof v === 'string') {
+        if (v.includes('.')) {
             return parseFloat(v);
         }
         return parseInt(v);
@@ -327,44 +389,45 @@ function toBoolean(v) {
     if (!v) {
         return false;
     }
-    if (typeof v === "string" && v.match(/^\s+$/)) {
+    if (typeof v === 'string' && v.match(/^\s+$/)) {
         return false;
     }
-    if (v === "false") {
+    if (v === 'false') {
         return false;
     }
-    if (v === "0") {
+    if (v === '0') {
         return false;
     }
     return true;
 }
 function toString(v, radix) {
     if (radix === void 0) { radix = 10; }
-    if (typeof v === "number") {
+    if (typeof v === 'number') {
         return v.toString(radix);
     }
-    if (v === true || v === "true") {
-        return "true";
+    if (v === true || v === 'true') {
+        return 'true';
     }
-    if (!v || v === "false") {
-        return "false";
+    if (!v || v === 'false') {
+        return 'false';
     }
-    return v + "";
+    return v + '';
 }
-function toDecimal(n) {
+function toScalar(n, radix) {
+    if (radix === void 0) { radix = 10; }
+    if (typeof n === 'number') {
+        return n.toString(radix);
+    }
+    if (typeof n === 'string') {
+        return n;
+    }
+    if (typeof n === 'boolean') {
+        return n;
+    }
     if (!n) {
-        return new Decimal__default["default"](0);
+        return null;
     }
-    if (n === true) {
-        return new Decimal__default["default"](1);
-    }
-    if (typeof n === "number") {
-        return new Decimal__default["default"](n);
-    }
-    if (!toBoolean(n)) {
-        return new Decimal__default["default"](0);
-    }
-    return new Decimal__default["default"](n);
+    return n + '';
 }
 function asyncMap(array, callback) {
     return __awaiter(this, void 0, void 0, function () {
@@ -391,16 +454,30 @@ function asyncMap(array, callback) {
     });
 }
 function setVar(ctx, name, value) {
-    var key = toString(name);
-    if (key.match(/^__proto__|prototype|constructor$/)) {
-        return value;
-    }
-    ctx.vars[key] = value;
-    return value;
+    return __awaiter(this, void 0, void 0, function () {
+        var key;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    key = toString(name);
+                    return [4 /*yield*/, ctx.set(key, value)];
+                case 1:
+                    _a.sent();
+                    return [2 /*return*/, value];
+            }
+        });
+    });
 }
-function toVar(ctx, name) {
+function getVar(ctx, name) {
     var _a;
-    return (_a = ctx.vars[name + ""]) !== null && _a !== void 0 ? _a : null;
+    return __awaiter(this, void 0, void 0, function () {
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0: return [4 /*yield*/, ctx.get(name + '')];
+                case 1: return [2 /*return*/, (_a = (_b.sent())) !== null && _a !== void 0 ? _a : null];
+            }
+        });
+    });
 }
 var STDLIB = {
     do: {
@@ -411,37 +488,132 @@ var STDLIB = {
                 args[_i - 1] = arguments[_i];
             }
             return (_a = args[args.length - 1]) !== null && _a !== void 0 ? _a : null;
-        }
+        },
     },
-    set: {
+    present: {
+        f: function (ctx, v) {
+            return !!v;
+        },
+    },
+    empty: {
+        f: function (ctx, v) {
+            return !v;
+        },
+    },
+    blank: {
+        f: function (ctx, v) {
+            if (typeof v === 'string' && (!v || v.match(/^\s+$/))) {
+                return true;
+            }
+            return !v;
+        },
+    },
+    join: {
+        f: function (ctx, spacer) {
+            var ss = [];
+            for (var _i = 2; _i < arguments.length; _i++) {
+                ss[_i - 2] = arguments[_i];
+            }
+            return ss.join(toString(spacer));
+        },
+    },
+    setVar: {
         assignment: true,
+        async: true,
         f: function (ctx, left, right) {
-            return setVar(ctx, left, right);
-        }
+            return __awaiter(this, void 0, void 0, function () {
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0: return [4 /*yield*/, setVar(ctx, left, right)];
+                        case 1: return [2 /*return*/, _a.sent()];
+                    }
+                });
+            });
+        },
     },
     setAdd: {
         assignment: true,
+        async: true,
         f: function (ctx, left, right) {
-            return setVar(ctx, left, toNumber(toVar(ctx, left)) + toNumber(right));
-        }
+            return __awaiter(this, void 0, void 0, function () {
+                var lval;
+                return __generator(this, function (_a) {
+                    switch (_a.label) {
+                        case 0: return [4 /*yield*/, getVar(ctx, left)];
+                        case 1:
+                            lval = _a.sent();
+                            if (!(typeof lval === 'string')) return [3 /*break*/, 3];
+                            return [4 /*yield*/, setVar(ctx, left, lval + right + '')];
+                        case 2: return [2 /*return*/, _a.sent()];
+                        case 3: return [4 /*yield*/, setVar(ctx, left, toNumber(lval) + toNumber(right))];
+                        case 4: return [2 /*return*/, _a.sent()];
+                    }
+                });
+            });
+        },
     },
     setSub: {
         assignment: true,
+        async: true,
         f: function (ctx, left, right) {
-            return setVar(ctx, left, toNumber(toVar(ctx, left)) - toNumber(right));
-        }
+            return __awaiter(this, void 0, void 0, function () {
+                var _a, _b, _c;
+                return __generator(this, function (_d) {
+                    switch (_d.label) {
+                        case 0:
+                            _a = setVar;
+                            _b = [ctx,
+                                left];
+                            _c = toNumber;
+                            return [4 /*yield*/, getVar(ctx, left)];
+                        case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) - toNumber(right)]))];
+                        case 2: return [2 /*return*/, _d.sent()];
+                    }
+                });
+            });
+        },
     },
     setMul: {
         assignment: true,
+        async: true,
         f: function (ctx, left, right) {
-            return setVar(ctx, left, toNumber(toVar(ctx, left)) * toNumber(right));
-        }
+            return __awaiter(this, void 0, void 0, function () {
+                var _a, _b, _c;
+                return __generator(this, function (_d) {
+                    switch (_d.label) {
+                        case 0:
+                            _a = setVar;
+                            _b = [ctx,
+                                left];
+                            _c = toNumber;
+                            return [4 /*yield*/, getVar(ctx, left)];
+                        case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) * toNumber(right)]))];
+                        case 2: return [2 /*return*/, _d.sent()];
+                    }
+                });
+            });
+        },
     },
     setDiv: {
         assignment: true,
+        async: true,
         f: function (ctx, left, right) {
-            return setVar(ctx, left, toNumber(toVar(ctx, left)) / toNumber(right));
-        }
+            return __awaiter(this, void 0, void 0, function () {
+                var _a, _b, _c;
+                return __generator(this, function (_d) {
+                    switch (_d.label) {
+                        case 0:
+                            _a = setVar;
+                            _b = [ctx,
+                                left];
+                            _c = toNumber;
+                            return [4 /*yield*/, getVar(ctx, left)];
+                        case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) / toNumber(right)]))];
+                        case 2: return [2 /*return*/, _d.sent()];
+                    }
+                });
+            });
+        },
     },
     unixTimestampNow: {
         f: function () {
@@ -488,7 +660,7 @@ var STDLIB = {
             for (var _i = 1; _i < arguments.length; _i++) {
                 xs[_i - 1] = arguments[_i];
             }
-            return !!(_a = STDLIB["any"]).f.apply(_a, __spreadArray([ctx], xs, false));
+            return !!(_a = STDLIB['any']).f.apply(_a, __spreadArray([ctx], xs, false));
         },
     },
     none: {
@@ -498,7 +670,7 @@ var STDLIB = {
             for (var _i = 1; _i < arguments.length; _i++) {
                 xs[_i - 1] = arguments[_i];
             }
-            return !(_a = STDLIB["any"]).f.apply(_a, __spreadArray([ctx], xs, false));
+            return !(_a = STDLIB['any']).f.apply(_a, __spreadArray([ctx], xs, false));
         },
     },
     or: {
@@ -518,22 +690,22 @@ var STDLIB = {
     },
     gt: {
         f: function (ctx, a, b) {
-            return toDecimal(a).gt(toDecimal(b));
+            return toNumber(a) > toNumber(b);
         },
     },
     gte: {
         f: function (ctx, a, b) {
-            return toDecimal(a).gte(toDecimal(b));
+            return toNumber(a) > toNumber(b);
         },
     },
     lt: {
         f: function (ctx, a, b) {
-            return toDecimal(a).lt(toDecimal(b));
+            return toNumber(a) > toNumber(b);
         },
     },
     lte: {
         f: function (ctx, a, b) {
-            return toDecimal(a).lte(toDecimal(b));
+            return toNumber(a) > toNumber(b);
         },
     },
     eq: {
@@ -610,177 +782,180 @@ var STDLIB = {
     },
     negate: {
         f: function (ctx, a) {
-            return toDecimal(a).neg().toFixed();
+            return -toNumber(a);
         },
     },
     add: {
         f: function (ctx, a, b) {
-            return toDecimal(a).add(toDecimal(b)).toFixed();
+            if (typeof a === 'string') {
+                return a + b + '';
+            }
+            return toNumber(a) + toNumber(b);
         },
     },
     sub: {
         f: function (ctx, a, b) {
-            return toDecimal(a).sub(toDecimal(b)).toFixed();
+            return toNumber(a) - toNumber(b);
         },
     },
     div: {
         f: function (ctx, a, b) {
-            return toDecimal(a).div(toDecimal(b)).toFixed();
+            return toNumber(a) / toNumber(b);
         },
     },
     mul: {
         f: function (ctx, a, b) {
-            return toDecimal(a).mul(toDecimal(b)).toFixed();
+            return toNumber(a) * toNumber(b);
         },
     },
     mod: {
         f: function (ctx, a, b) {
-            return toDecimal(a).mod(toDecimal(b)).toFixed();
+            return toNumber(a) % toNumber(b);
         },
     },
     pow: {
         f: function (ctx, a, b) {
-            return toDecimal(a).pow(toDecimal(b)).toFixed();
+            return Math.pow(toNumber(a), toNumber(b));
         },
     },
     abs: {
         f: function (ctx, a) {
-            return Decimal__default["default"].abs(toDecimal(a)).toFixed();
+            return Math.abs(toNumber(a));
         },
     },
     acos: {
         f: function (ctx, a) {
-            return Decimal__default["default"].acos(toDecimal(a)).toFixed();
+            return Math.acos(toNumber(a));
         },
     },
     acosh: {
         f: function (ctx, a) {
-            return Decimal__default["default"].acosh(toDecimal(a)).toFixed();
+            return Math.acosh(toNumber(a));
         },
     },
     asin: {
         f: function (ctx, a) {
-            return Decimal__default["default"].asin(toDecimal(a)).toFixed();
+            return Math.asin(toNumber(a));
         },
     },
     asinh: {
         f: function (ctx, a) {
-            return Decimal__default["default"].asinh(toDecimal(a)).toFixed();
+            return Math.asinh(toNumber(a));
         },
     },
     atan: {
         f: function (ctx, a) {
-            return Decimal__default["default"].atan(toDecimal(a)).toFixed();
+            return Math.atan(toNumber(a));
         },
     },
     atan2: {
         f: function (ctx, a, b) {
-            return Decimal__default["default"].atan2(toDecimal(a), toDecimal(b)).toFixed();
+            return Math.atan2(toNumber(a), toNumber(b));
         },
     },
     atanh: {
         f: function (ctx, a) {
-            return Decimal__default["default"].atanh(toDecimal(a)).toFixed();
+            return Math.atanh(toNumber(a));
         },
     },
     cbrt: {
         f: function (ctx, a) {
-            return Decimal__default["default"].cbrt(toDecimal(a)).toFixed();
+            return Math.cbrt(toNumber(a));
         },
     },
     ceil: {
         f: function (ctx, a) {
-            return Decimal__default["default"].ceil(toDecimal(a)).toFixed();
+            return Math.ceil(toNumber(a));
         },
     },
     cos: {
         f: function (ctx, a) {
-            return Decimal__default["default"].cos(toDecimal(a)).toFixed();
+            return Math.cos(toNumber(a));
         },
     },
     cosh: {
         f: function (ctx, a) {
-            return Decimal__default["default"].cosh(toDecimal(a)).toFixed();
+            return Math.cosh(toNumber(a));
         },
     },
     exp: {
         f: function (ctx, a) {
-            return Decimal__default["default"].exp(toDecimal(a)).toFixed();
+            return Math.exp(toNumber(a));
         },
     },
     floor: {
         f: function (ctx, a) {
-            return Decimal__default["default"].floor(toDecimal(a)).toFixed();
+            return Math.floor(toNumber(a));
         },
     },
     hypot: {
         f: function (ctx, a) {
-            return Decimal__default["default"].hypot(toDecimal(a)).toFixed();
+            return Math.hypot(toNumber(a));
         },
     },
     log: {
         f: function (ctx, a) {
-            return Decimal__default["default"].log(toDecimal(a)).toFixed();
+            return Math.log(toNumber(a));
         },
     },
     log10: {
         f: function (ctx, a) {
-            return Decimal__default["default"].log10(toDecimal(a)).toFixed();
+            return Math.log10(toNumber(a));
         },
     },
     log2: {
         f: function (ctx, a) {
-            return Decimal__default["default"].log2(toDecimal(a)).toFixed();
+            return Math.log2(toNumber(a));
         },
     },
     max: {
         f: function (ctx, a) {
-            return Decimal__default["default"].max(toDecimal(a)).toFixed();
+            return Math.max(toNumber(a));
         },
     },
     min: {
         f: function (ctx, a) {
-            return Decimal__default["default"].min(toDecimal(a)).toFixed();
+            return Math.min(toNumber(a));
         },
     },
     round: {
         f: function (ctx, a) {
-            return Decimal__default["default"].round(toDecimal(a)).toFixed();
+            return Math.round(toNumber(a));
         },
     },
     sign: {
         f: function (ctx, a) {
-            return Decimal__default["default"].sign(toDecimal(a)).toFixed();
+            return Math.sign(toNumber(a));
         },
     },
     sin: {
         f: function (ctx, a) {
-            return Decimal__default["default"].sin(toDecimal(a)).toFixed();
+            return Math.sin(toNumber(a));
         },
     },
     sinh: {
         f: function (ctx, a) {
-            return Decimal__default["default"].sinh(toDecimal(a)).toFixed();
+            return Math.sinh(toNumber(a));
         },
     },
     sqrt: {
         f: function (ctx, a) {
-            return Decimal__default["default"].sqrt(toDecimal(a)).toFixed();
+            return Math.sqrt(toNumber(a));
         },
     },
     tan: {
         f: function (ctx, a) {
-            return Decimal__default["default"].tan(toDecimal(a)).toFixed();
+            return Math.tan(toNumber(a));
         },
     },
     tanh: {
         f: function (ctx, a) {
-            return Decimal__default["default"].tanh(toDecimal(a)).toFixed();
+            return Math.tanh(toNumber(a));
         },
     },
     trunc: {
         f: function (ctx, a) {
-            return Decimal__default["default"].trunc(toDecimal(a)).toFixed();
+            return Math.trunc(toNumber(a));
         },
     },
     fromCharCode: {
@@ -830,7 +1005,7 @@ var STDLIB = {
             for (var _i = 1; _i < arguments.length; _i++) {
                 ss[_i - 1] = arguments[_i];
             }
-            return "".concat.apply("", ss.map(function (s) { return toString(s); }));
+            return ''.concat.apply('', ss.map(function (s) { return toString(s); }));
         },
     },
     endsWith: {
@@ -870,12 +1045,12 @@ var STDLIB = {
     },
     padEnd: {
         f: function (ctx, a, b, c) {
-            return toString(a).padEnd(Number(b), toString(c !== null && c !== void 0 ? c : ""));
+            return toString(a).padEnd(Number(b), toString(c !== null && c !== void 0 ? c : ''));
         },
     },
     padStart: {
         f: function (ctx, a, b, c) {
-            return toString(a).padStart(Number(b), toString(c !== null && c !== void 0 ? c : ""));
+            return toString(a).padStart(Number(b), toString(c !== null && c !== void 0 ? c : ''));
         },
     },
     repeat: {
@@ -940,12 +1115,12 @@ var STDLIB = {
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 // The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-var associativity = function (binop) { return (binop === "**" ? r2l : l2r); };
+var associativity = function (binop) { return (binop === '**' ? r2l : l2r); };
 function locAt(text, newPos, _a) {
     var pos = _a.pos, line = _a.line, column = _a.column;
     while (pos < newPos) {
         var ch = text[pos++];
-        if (ch === "\n") {
+        if (ch === '\n') {
             column = 1;
             line++;
         }
@@ -984,16 +1159,16 @@ function StringToken(pattern) {
     };
 }
 function Use(rule) {
-    if (typeof rule === "function") {
+    if (typeof rule === 'function') {
         return rule;
     }
     if (rule instanceof RegExp) {
         return RegexToken(rule);
     }
-    if (typeof rule === "string") {
+    if (typeof rule === 'string') {
         return StringToken(rule);
     }
-    throw new Error("Invalid rule");
+    throw new Error('Invalid rule');
 }
 function Ignore(toIgnore, rule) {
     rule = Use(rule);
@@ -1107,8 +1282,8 @@ function Parser(Grammar, pos, partial) {
     if (pos === void 0) { pos = 0; }
     if (partial === void 0) { partial = false; }
     return function (text) {
-        if (typeof text !== "string") {
-            throw new Error("Parsing function expects a string input");
+        if (typeof text !== 'string') {
+            throw new Error('Parsing function expects a string input');
         }
         var $ = START(text, pos);
         var $next = Grammar($);
@@ -1123,7 +1298,7 @@ function l2r(parts, $) {
     for (var i = 1; i < parts.length; i += 2) {
         var _a = [parts[i].operator, parts[i + 1]], operator = _a[0], right = _a[1];
         left = srcMap({
-            type: "BinaryExpression",
+            type: 'BinaryExpression',
             left: left,
             operator: operator,
             right: right,
@@ -1136,7 +1311,7 @@ function r2l(parts, _, $next) {
     for (var i = parts.length - 2; i >= 0; i -= 2) {
         var _a = [parts[i - 1], parts[i].operator], left = _a[0], operator = _a[1];
         right = srcMap({
-            type: "BinaryExpression",
+            type: 'BinaryExpression',
             left: left,
             operator: operator,
             right: right,
@@ -1144,7 +1319,12 @@ function r2l(parts, _, $next) {
     }
     return right;
 }
-var Operator = function (Rule) { return Node(Rule, function (_, $, $next) { return ({ $: $, operator: $.text.substring($.pos, $next.pos) }); }); };
+var Operator = function (Rule) {
+    return Node(Rule, function (_, $, $next) { return ({
+        $: $,
+        operator: $.text.substring($.pos, $next.pos),
+    }); });
+};
 var srcMap = function (obj, $, $next) {
     return Object.defineProperties(obj, {
         pos: { writable: true, configurable: true, value: $.pos },
@@ -1158,65 +1338,95 @@ var srcMap = function (obj, $, $next) {
 var DefaultGrammar = IgnoreWhitespace(Y(function (Expression) {
     var Identifier = Node(IdentifierToken, function (_a) {
         var name = _a[0];
-        return ({ type: "Identifier", name: name });
+        return ({
+            type: 'Identifier',
+            name: name,
+        });
     });
     var StringLiteral = Node(QuoteToken, function (_a) {
         var raw = _a[0];
         return ({
-            type: "Literal",
+            type: 'Literal',
             value: raw.slice(1, -1),
             raw: raw,
         });
     });
     var NumericLiteral = Node(NumericToken, function (_a) {
         var raw = _a[0];
-        return ({ type: "Literal", value: +raw, raw: raw });
+        return ({
+            type: 'Literal',
+            value: +raw,
+            raw: raw,
+        });
     });
     var NullLiteral = Node(NullToken, function (_a) {
         var raw = _a[0];
-        return ({ type: "Literal", value: null, raw: raw });
+        return ({
+            type: 'Literal',
+            value: null,
+            raw: raw,
+        });
     });
     var BooleanLiteral = Node(BooleanToken, function (_a) {
         var raw = _a[0];
         return ({
-            type: "Literal",
-            value: raw === "true",
+            type: 'Literal',
+            value: raw === 'true',
             raw: raw,
         });
     });
-    var Literal = Any(StringLiteral, NumericLiteral, NullLiteral, BooleanLiteral);
-    var ArgumentsList = All(Expression, Star(All(",", Expression)));
-    var Arguments = Node(All("(", Optional(All(ArgumentsList, Optional(","))), ")"), function (args) { return ({
+    var InterpolationChunk = Node(InterpolationChunkToken, function (_a) {
+        var raw = _a[0];
+        return [
+            'chunks',
+            raw,
+        ];
+    });
+    var TemplateInlineExpression = Node(All('${', IgnoreWhitespace(Expression), '}'), function (_a) {
+        var expression = _a[0];
+        return ['expression', expression];
+    });
+    var TemplateLiteral = Node(Ignore(null, All('`', Star(Any(InterpolationChunk, TemplateInlineExpression)), '`')), function (parts) { return ({ type: 'TemplateLiteral', parts: parts }); });
+    var Literal = Any(StringLiteral, NumericLiteral, NullLiteral, BooleanLiteral, TemplateLiteral);
+    var ArgumentsList = All(Expression, Star(All(',', Expression)));
+    var Arguments = Node(All('(', Optional(All(ArgumentsList, Optional(','))), ')'), function (args) { return ({
         args: args,
     }); });
     var ArgumentsExpression = Node(Any(Arguments), function (_a, _, $next) {
         var part = _a[0];
-        return ({ part: part, $next: $next });
+        return ({
+            part: part,
+            $next: $next,
+        });
     });
-    var CompoundExpression = Node(All(Expression, Star(All(",", Expression))), function (leafs) {
-        return leafs.length > 1 ? { type: "CompoundExpression", leafs: leafs } : leafs[0];
+    var CompoundExpression = Node(All(Expression, Star(All(',', Expression))), function (leafs) {
+        return leafs.length > 1 ? { type: 'CompoundExpression', leafs: leafs } : leafs[0];
     });
-    var PrimaryExpression = Node(Any(Literal, Identifier, All("(", CompoundExpression, ")")), function (_a, $, $next) {
+    var PrimaryExpression = Node(Any(Literal, Identifier, All('(', CompoundExpression, ')')), function (_a, $, $next) {
         var expr = _a[0];
         return srcMap(expr, $, $next);
     });
     var CallExpression = Node(All(PrimaryExpression, Star(ArgumentsExpression)), function (parts, $, $last) {
         return parts.reduce(function (acc, _a) {
             var part = _a.part, $next = _a.$next;
-            return srcMap({ type: "CallExpression", callee: acc, arguments: part.args }, $, $next);
+            return srcMap({ type: 'CallExpression', callee: acc, arguments: part.args }, $, $next);
         });
     });
-    var UnaryOperator = Operator(Any("+", "-", "~", "!"));
+    var UnaryOperator = Operator(Any('+', '-', '~', '!'));
     var UnaryExpression = Node(All(Star(UnaryOperator), CallExpression), function (parts, _, $next) {
         return parts.reduceRight(function (argument, _a) {
             var $ = _a.$, operator = _a.operator;
-            return srcMap({ type: "UnaryExpression", argument: argument, operator: operator }, $, $next);
+            return srcMap({ type: 'UnaryExpression', argument: argument, operator: operator }, $, $next);
         });
     });
-    var LogicalExpressionOrExpression = BinaryOperatorPrecedence.reduce(function (Expr, BinaryOp) { return Node(All(Expr, Star(All(Operator(BinaryOp), Expr))), associativity(BinaryOp)); }, UnaryExpression);
-    var TernaryExpression = Node(All(LogicalExpressionOrExpression, Optional(All("?", Expression, ":", Expression))), function (_a) {
+    var LogicalExpressionOrExpression = BinaryOperatorPrecedence.reduce(function (Expr, BinaryOp) {
+        return Node(All(Expr, Star(All(Operator(BinaryOp), Expr))), associativity(BinaryOp));
+    }, UnaryExpression);
+    var TernaryExpression = Node(All(LogicalExpressionOrExpression, Optional(All('?', Expression, ':', Expression))), function (_a) {
         var test = _a[0], consequent = _a[1], alternate = _a[2];
-        return consequent ? { type: "TernaryExpression", test: test, consequent: consequent, alternate: alternate } : test;
+        return consequent
+            ? { type: 'TernaryExpression', test: test, consequent: consequent, alternate: alternate }
+            : test;
     });
     return Node(Any(TernaryExpression), function (_a, $, $next) {
         var expr = _a[0];
@@ -1233,7 +1443,7 @@ exports.executeAst = executeAst;
 exports.exprToIdentifier = exprToIdentifier;
 exports.parseExpr = parseExpr;
 exports.toBoolean = toBoolean;
-exports.toDecimal = toDecimal;
 exports.toNumber = toNumber;
+exports.toScalar = toScalar;
 exports.toString = toString;
 //# sourceMappingURL=index.cjs.map

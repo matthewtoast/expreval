@@ -1,4 +1,3 @@
-import Decimal from 'decimal.js';
 export declare type DictOf<T> = {
     [key: string]: T;
 };
@@ -28,48 +27,50 @@ export declare type TExprResult = {
 export declare type TExprContext = {
     rng: () => number;
     funcs: DictOf<TExprFuncDef>;
-    vars: DictOf<TExprScalar>;
     binops: DictOf<TBinopDef>;
     unops: DictOf<TUnopDef>;
+    get: (key: string) => Promise<TExprScalar>;
+    set: (key: string, value: TExprScalar) => Promise<void>;
+    call?: TExprFuncAsync | undefined;
 };
-export declare type TExpression = TCallExpression | TIdentifierExpression | TBinaryExpression | TLiteralExpression | TTernaryExpression | TUnaryExpression;
+export declare type TExpression = TCallExpression | TIdentifierExpression | TBinaryExpression | TLiteralExpression | TTernaryExpression | TUnaryExpression | TTemplateLiteralExpression;
+export declare type TTemplateLiteralExpression = {
+    type: 'TemplateLiteral';
+    parts: [['chunks', string] | ['expression', TExpression]];
+};
 export declare type TCallExpression = {
-    type: "CallExpression";
+    type: 'CallExpression';
     callee: TIdentifierExpression;
     arguments: TExpression[];
 };
 export declare type TIdentifierExpression = {
-    type: "Identifier";
+    type: 'Identifier';
     name: string;
 };
 export declare type TBinaryExpression = {
-    type: "BinaryExpression";
+    type: 'BinaryExpression';
     left: TExpression;
     operator: string;
     right: TExpression;
 };
 export declare type TLiteralExpression = {
-    type: "Literal";
+    type: 'Literal';
     value: string;
     raw: string;
 };
 export declare type TTernaryExpression = {
-    type: "TernaryExpression";
+    type: 'TernaryExpression';
     test: TExpression;
     consequent: TExpression;
     alternate: TExpression;
 };
 export declare type TUnaryExpression = {
-    type: "UnaryExpression";
+    type: 'UnaryExpression';
     argument: TExpression;
     operator: string;
 };
 export declare const CONSTS: DictOf<TExprScalar>;
-export declare function createExprContext({ funcs, vars, binops, unops, seed, }: {
-    funcs?: DictOf<TExprFuncDef>;
-    vars?: DictOf<TExprScalar>;
-    binops?: DictOf<string>;
-    unops?: DictOf<string>;
+export declare function createExprContext({ funcs, binops, unops, seed, get, set, call, }: Partial<TExprContext> & {
     seed?: string;
 }): TExprContext;
 export declare function evaluateExpr(code: string, ctx?: TExprContext): Promise<TExprResult>;
@@ -80,6 +81,6 @@ export declare function exprToIdentifier(v: TExpression): string | null;
 export declare function toNumber(v: any, fallback?: number): number;
 export declare function toBoolean(v: TExprScalar): boolean;
 export declare function toString(v: TExprScalar, radix?: number): string;
-export declare function toDecimal(n: TExprScalar): Decimal;
+export declare function toScalar(n: any, radix?: number): TExprScalar;
 export declare const STDLIB: DictOf<TExprFuncDef>;
 //# sourceMappingURL=index.d.ts.map
