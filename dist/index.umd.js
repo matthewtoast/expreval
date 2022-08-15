@@ -142,6 +142,7 @@
         '-=': { alias: 'setSub' },
         '/=': { alias: 'setDiv' },
         '*=': { alias: 'setMul' },
+        '??': { alias: 'nullCoalesce' },
     };
     var UNOP_MAP = {
         '+': { alias: 'number' },
@@ -168,6 +169,7 @@
         /^\|(?!\|)/,
         '&&',
         '||',
+        '??',
         Any(':=', '+=', '-=', '*=', '/='),
     ];
     var INVALID_IDENT_REGEX = /^__proto__|prototype|constructor$/;
@@ -180,7 +182,7 @@
             funcs: __assign(__assign({}, STDLIB), funcs),
             binops: __assign(__assign({}, BINOP_MAP), binops),
             unops: __assign(__assign({}, UNOP_MAP), unops),
-            get: function (name) { return __awaiter(_this, void 0, void 0, function () {
+            get: function (scope, name) { return __awaiter(_this, void 0, void 0, function () {
                 var _a, _b;
                 return __generator(this, function (_c) {
                     switch (_c.label) {
@@ -189,13 +191,13 @@
                                 return [2 /*return*/, 0];
                             }
                             if (!get) return [3 /*break*/, 2];
-                            return [4 /*yield*/, get(name)];
+                            return [4 /*yield*/, get(scope, name)];
                         case 1: return [2 /*return*/, (_a = (_c.sent())) !== null && _a !== void 0 ? _a : null];
                         case 2: return [2 /*return*/, (_b = vars[name]) !== null && _b !== void 0 ? _b : null];
                     }
                 });
             }); },
-            set: function (name, value) { return __awaiter(_this, void 0, void 0, function () {
+            set: function (scope, name, value) { return __awaiter(_this, void 0, void 0, function () {
                 return __generator(this, function (_a) {
                     switch (_a.label) {
                         case 0:
@@ -203,7 +205,7 @@
                                 return [2 /*return*/];
                             }
                             if (!set) return [3 /*break*/, 2];
-                            return [4 /*yield*/, set(name, value)];
+                            return [4 /*yield*/, set(scope, name, value)];
                         case 1: return [2 /*return*/, _a.sent()];
                         case 2:
                             vars[name] = value;
@@ -214,15 +216,16 @@
             call: call,
         };
     }
-    function evaluateExpr(code, ctx) {
+    function evaluateExpr(code, ctx, scope) {
         if (ctx === void 0) { ctx = createExprContext({}); }
+        if (scope === void 0) { scope = {}; }
         return __awaiter(this, void 0, void 0, function () {
             var _a;
             return __generator(this, function (_b) {
                 switch (_b.label) {
                     case 0:
                         _a = {};
-                        return [4 /*yield*/, executeAst(parseExpr(code), ctx)];
+                        return [4 /*yield*/, executeAst(parseExpr(code), ctx, scope)];
                     case 1: return [2 /*return*/, (_a.result = _b.sent(),
                             _a.ctx = ctx,
                             _a)];
@@ -234,7 +237,7 @@
         var parser = Parser(DefaultGrammar);
         return parser(code.replace(/\/\/.*\n/g, ''));
     }
-    function executeAst(ast, ctx) {
+    function executeAst(ast, ctx, scope) {
         var _a;
         if (ctx === void 0) { ctx = createExprContext({}); }
         return __awaiter(this, void 0, void 0, function () {
@@ -255,7 +258,7 @@
                         }
                         return [3 /*break*/, 27];
                     case 1: return [2 /*return*/, ast.value];
-                    case 2: return [4 /*yield*/, ctx.get(ast.name)];
+                    case 2: return [4 /*yield*/, ctx.get(scope, ast.name)];
                     case 3:
                         value = _m.sent();
                         return [2 /*return*/, value !== undefined ? value : ast.name];
@@ -272,7 +275,7 @@
                         _f = [[left]];
                         return [4 /*yield*/, asyncMap(right, function (expr) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
                                 switch (_a.label) {
-                                    case 0: return [4 /*yield*/, executeAst(expr, ctx)];
+                                    case 0: return [4 /*yield*/, executeAst(expr, ctx, scope)];
                                     case 1: return [2 /*return*/, _a.sent()];
                                 }
                             }); }); })];
@@ -284,7 +287,7 @@
                         _j = [args];
                         return [4 /*yield*/, asyncMap(ast.arguments, function (expr) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
                                 switch (_a.label) {
-                                    case 0: return [4 /*yield*/, executeAst(expr, ctx)];
+                                    case 0: return [4 /*yield*/, executeAst(expr, ctx, scope)];
                                     case 1: return [2 /*return*/, _a.sent()];
                                 }
                             }); }); })];
@@ -294,12 +297,12 @@
                     case 8:
                         if (!fdef) return [3 /*break*/, 11];
                         if (!fdef.async) return [3 /*break*/, 10];
-                        return [4 /*yield*/, fdef.f.apply(fdef, __spreadArray([ctx], args, false))];
+                        return [4 /*yield*/, fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false))];
                     case 9: return [2 /*return*/, _m.sent()];
-                    case 10: return [2 /*return*/, fdef.f.apply(fdef, __spreadArray([ctx], args, false))];
+                    case 10: return [2 /*return*/, fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false))];
                     case 11:
                         if (!ctx.call) return [3 /*break*/, 13];
-                        return [4 /*yield*/, ctx.call.apply(ctx, __spreadArray([ctx, ast.callee.name], args, false))];
+                        return [4 /*yield*/, ctx.call(ctx, scope, ast.callee.name, args)];
                     case 12: return [2 /*return*/, _m.sent()];
                     case 13: throw new Error("Function not found: '".concat(ast.callee.name, "'"));
                     case 14:
@@ -314,16 +317,16 @@
                                         type: 'Identifier',
                                     },
                                     arguments: [ast.left, ast.right],
-                                }, ctx)];
+                                }, ctx, scope)];
                         }
                         throw new Error("Operator not found: '".concat(ast.operator, "'"));
-                    case 15: return [4 /*yield*/, executeAst(ast.test, ctx)];
+                    case 15: return [4 /*yield*/, executeAst(ast.test, ctx, scope)];
                     case 16:
                         result = _m.sent();
                         if (!toBoolean(result)) return [3 /*break*/, 18];
-                        return [4 /*yield*/, executeAst(ast.consequent, ctx)];
+                        return [4 /*yield*/, executeAst(ast.consequent, ctx, scope)];
                     case 17: return [2 /*return*/, _m.sent()];
-                    case 18: return [4 /*yield*/, executeAst(ast.alternate, ctx)];
+                    case 18: return [4 /*yield*/, executeAst(ast.alternate, ctx, scope)];
                     case 19: return [2 /*return*/, _m.sent()];
                     case 20:
                         unop = Object.keys(ctx.unops).includes(ast.operator)
@@ -337,7 +340,7 @@
                                         type: 'Identifier',
                                     },
                                     arguments: [ast.argument],
-                                }, ctx)];
+                                }, ctx, scope)];
                         }
                         throw new Error("Operator not found: '".concat(ast.operator, "'"));
                     case 21:
@@ -353,7 +356,7 @@
                     case 23:
                         if (!(kind === 'expression')) return [3 /*break*/, 25];
                         _l = accum;
-                        return [4 /*yield*/, executeAst(value_1, ctx)];
+                        return [4 /*yield*/, executeAst(value_1, ctx, scope)];
                     case 24:
                         accum = _l + ((_m.sent()) + '');
                         _m.label = 25;
@@ -453,14 +456,14 @@
             });
         });
     }
-    function setVar(ctx, name, value) {
+    function setVar(ctx, scope, name, value) {
         return __awaiter(this, void 0, void 0, function () {
             var key;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         key = toString(name);
-                        return [4 /*yield*/, ctx.set(key, value)];
+                        return [4 /*yield*/, ctx.set(scope, key, value)];
                     case 1:
                         _a.sent();
                         return [2 /*return*/, value];
@@ -468,12 +471,12 @@
             });
         });
     }
-    function getVar(ctx, name) {
+    function getVar(ctx, scope, name) {
         var _a;
         return __awaiter(this, void 0, void 0, function () {
             return __generator(this, function (_b) {
                 switch (_b.label) {
-                    case 0: return [4 /*yield*/, ctx.get(name + '')];
+                    case 0: return [4 /*yield*/, ctx.get(scope, name + '')];
                     case 1: return [2 /*return*/, (_a = (_b.sent())) !== null && _a !== void 0 ? _a : null];
                 }
             });
@@ -481,27 +484,27 @@
     }
     var STDLIB = {
         do: {
-            f: function (ctx) {
+            f: function (ctx, scope) {
                 var _a;
                 var args = [];
-                for (var _i = 1; _i < arguments.length; _i++) {
-                    args[_i - 1] = arguments[_i];
+                for (var _i = 2; _i < arguments.length; _i++) {
+                    args[_i - 2] = arguments[_i];
                 }
                 return (_a = args[args.length - 1]) !== null && _a !== void 0 ? _a : null;
             },
         },
         present: {
-            f: function (ctx, v) {
+            f: function (ctx, scope, v) {
                 return !!v;
             },
         },
         empty: {
-            f: function (ctx, v) {
+            f: function (ctx, scope, v) {
                 return !v;
             },
         },
         blank: {
-            f: function (ctx, v) {
+            f: function (ctx, scope, v) {
                 if (typeof v === 'string' && (!v || v.match(/^\s+$/))) {
                     return true;
                 }
@@ -509,10 +512,10 @@
             },
         },
         join: {
-            f: function (ctx, spacer) {
+            f: function (ctx, scope, spacer) {
                 var ss = [];
-                for (var _i = 2; _i < arguments.length; _i++) {
-                    ss[_i - 2] = arguments[_i];
+                for (var _i = 3; _i < arguments.length; _i++) {
+                    ss[_i - 3] = arguments[_i];
                 }
                 return ss.join(toString(spacer));
             },
@@ -520,11 +523,11 @@
         setVar: {
             assignment: true,
             async: true,
-            f: function (ctx, left, right) {
+            f: function (ctx, scope, left, right) {
                 return __awaiter(this, void 0, void 0, function () {
                     return __generator(this, function (_a) {
                         switch (_a.label) {
-                            case 0: return [4 /*yield*/, setVar(ctx, left, right)];
+                            case 0: return [4 /*yield*/, setVar(ctx, scope, left, right)];
                             case 1: return [2 /*return*/, _a.sent()];
                         }
                     });
@@ -534,18 +537,18 @@
         setAdd: {
             assignment: true,
             async: true,
-            f: function (ctx, left, right) {
+            f: function (ctx, scope, left, right) {
                 return __awaiter(this, void 0, void 0, function () {
                     var lval;
                     return __generator(this, function (_a) {
                         switch (_a.label) {
-                            case 0: return [4 /*yield*/, getVar(ctx, left)];
+                            case 0: return [4 /*yield*/, getVar(ctx, scope, left)];
                             case 1:
                                 lval = _a.sent();
                                 if (!(typeof lval === 'string')) return [3 /*break*/, 3];
-                                return [4 /*yield*/, setVar(ctx, left, lval + right + '')];
+                                return [4 /*yield*/, setVar(ctx, scope, left, lval + right + '')];
                             case 2: return [2 /*return*/, _a.sent()];
-                            case 3: return [4 /*yield*/, setVar(ctx, left, toNumber(lval) + toNumber(right))];
+                            case 3: return [4 /*yield*/, setVar(ctx, scope, left, toNumber(lval) + toNumber(right))];
                             case 4: return [2 /*return*/, _a.sent()];
                         }
                     });
@@ -555,7 +558,7 @@
         setSub: {
             assignment: true,
             async: true,
-            f: function (ctx, left, right) {
+            f: function (ctx, scope, left, right) {
                 return __awaiter(this, void 0, void 0, function () {
                     var _a, _b, _c;
                     return __generator(this, function (_d) {
@@ -563,9 +566,10 @@
                             case 0:
                                 _a = setVar;
                                 _b = [ctx,
+                                    scope,
                                     left];
                                 _c = toNumber;
-                                return [4 /*yield*/, getVar(ctx, left)];
+                                return [4 /*yield*/, getVar(ctx, scope, left)];
                             case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) - toNumber(right)]))];
                             case 2: return [2 /*return*/, _d.sent()];
                         }
@@ -576,7 +580,7 @@
         setMul: {
             assignment: true,
             async: true,
-            f: function (ctx, left, right) {
+            f: function (ctx, scope, left, right) {
                 return __awaiter(this, void 0, void 0, function () {
                     var _a, _b, _c;
                     return __generator(this, function (_d) {
@@ -584,9 +588,10 @@
                             case 0:
                                 _a = setVar;
                                 _b = [ctx,
+                                    scope,
                                     left];
                                 _c = toNumber;
-                                return [4 /*yield*/, getVar(ctx, left)];
+                                return [4 /*yield*/, getVar(ctx, scope, left)];
                             case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) * toNumber(right)]))];
                             case 2: return [2 /*return*/, _d.sent()];
                         }
@@ -597,7 +602,7 @@
         setDiv: {
             assignment: true,
             async: true,
-            f: function (ctx, left, right) {
+            f: function (ctx, scope, left, right) {
                 return __awaiter(this, void 0, void 0, function () {
                     var _a, _b, _c;
                     return __generator(this, function (_d) {
@@ -605,14 +610,20 @@
                             case 0:
                                 _a = setVar;
                                 _b = [ctx,
+                                    scope,
                                     left];
                                 _c = toNumber;
-                                return [4 /*yield*/, getVar(ctx, left)];
+                                return [4 /*yield*/, getVar(ctx, scope, left)];
                             case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) / toNumber(right)]))];
                             case 2: return [2 /*return*/, _d.sent()];
                         }
                     });
                 });
+            },
+        },
+        nullCoalesce: {
+            f: function (ctx, scope, a, b) {
+                return a !== null && a !== void 0 ? a : b;
             },
         },
         unixTimestampNow: {
@@ -621,15 +632,15 @@
             },
         },
         unixTimestampForDate: {
-            f: function (ctx, year, mon, day, hour, min, second) {
+            f: function (ctx, scope, year, mon, day, hour, min, second) {
                 return new Date(toNumber(year), toNumber(mon), toNumber(day), toNumber(hour), toNumber(min), toNumber(second)).getTime();
             },
         },
         all: {
-            f: function (ctx) {
+            f: function (ctx, scope) {
                 var xs = [];
-                for (var _i = 1; _i < arguments.length; _i++) {
-                    xs[_i - 1] = arguments[_i];
+                for (var _i = 2; _i < arguments.length; _i++) {
+                    xs[_i - 2] = arguments[_i];
                 }
                 for (var i = 0; i < xs.length; i++) {
                     if (!xs[i]) {
@@ -640,10 +651,10 @@
             },
         },
         any: {
-            f: function (ctx) {
+            f: function (ctx, scope) {
                 var xs = [];
-                for (var _i = 1; _i < arguments.length; _i++) {
-                    xs[_i - 1] = arguments[_i];
+                for (var _i = 2; _i < arguments.length; _i++) {
+                    xs[_i - 2] = arguments[_i];
                 }
                 for (var i = 0; i < xs.length; i++) {
                     if (xs[i]) {
@@ -654,67 +665,67 @@
             },
         },
         some: {
-            f: function (ctx) {
+            f: function (ctx, scope) {
                 var _a;
                 var xs = [];
-                for (var _i = 1; _i < arguments.length; _i++) {
-                    xs[_i - 1] = arguments[_i];
+                for (var _i = 2; _i < arguments.length; _i++) {
+                    xs[_i - 2] = arguments[_i];
                 }
-                return !!(_a = STDLIB['any']).f.apply(_a, __spreadArray([ctx], xs, false));
+                return !!(_a = STDLIB['any']).f.apply(_a, __spreadArray([ctx, scope], xs, false));
             },
         },
         none: {
-            f: function (ctx) {
+            f: function (ctx, scope) {
                 var _a;
                 var xs = [];
-                for (var _i = 1; _i < arguments.length; _i++) {
-                    xs[_i - 1] = arguments[_i];
+                for (var _i = 2; _i < arguments.length; _i++) {
+                    xs[_i - 2] = arguments[_i];
                 }
-                return !(_a = STDLIB['any']).f.apply(_a, __spreadArray([ctx], xs, false));
+                return !(_a = STDLIB['any']).f.apply(_a, __spreadArray([ctx, scope], xs, false));
             },
         },
         or: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toBoolean(a) || toBoolean(b);
             },
         },
         and: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toBoolean(a) && toBoolean(b);
             },
         },
         not: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return !toBoolean(a);
             },
         },
         gt: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toNumber(a) > toNumber(b);
             },
         },
         gte: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toNumber(a) > toNumber(b);
             },
         },
         lt: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toNumber(a) > toNumber(b);
             },
         },
         lte: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toNumber(a) > toNumber(b);
             },
         },
         eq: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a) === toString(b);
             },
         },
         neq: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a) !== toString(b);
             },
         },
@@ -724,7 +735,7 @@
             },
         },
         randInRange: {
-            f: function (ctx, min, max) {
+            f: function (ctx, scope, min, max) {
                 return ctx.rng() * (Number(max) - Number(min)) + Number(min);
             },
         },
@@ -734,59 +745,59 @@
             },
         },
         randIntInRange: {
-            f: function (ctx, min, max) {
+            f: function (ctx, scope, min, max) {
                 min = Math.ceil(Number(min));
                 max = Math.floor(Number(max));
                 return Math.floor(ctx.rng() * (max - min + 1)) + min;
             },
         },
         number: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Number(a);
             },
         },
         bitwiseOr: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return Number(a) | Number(b);
             },
         },
         bitwiseXor: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return Number(a) ^ Number(b);
             },
         },
         bitwiseAnd: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return Number(a) & Number(b);
             },
         },
         bitwiseNot: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return ~Number(a);
             },
         },
         bitwiseLeftShift: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return Number(a) << Number(b);
             },
         },
         bitwiseRightShift: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return Number(a) >> Number(b);
             },
         },
         bitwiseRightshiftUnsigned: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return Number(a) >>> Number(b);
             },
         },
         negate: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return -toNumber(a);
             },
         },
         add: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 if (typeof a === 'string') {
                     return a + b + '';
                 }
@@ -794,318 +805,341 @@
             },
         },
         sub: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toNumber(a) - toNumber(b);
             },
         },
         div: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toNumber(a) / toNumber(b);
             },
         },
         mul: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toNumber(a) * toNumber(b);
             },
         },
         mod: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toNumber(a) % toNumber(b);
             },
         },
         pow: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return Math.pow(toNumber(a), toNumber(b));
             },
         },
         abs: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.abs(toNumber(a));
             },
         },
         acos: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.acos(toNumber(a));
             },
         },
         acosh: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.acosh(toNumber(a));
             },
         },
         asin: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.asin(toNumber(a));
             },
         },
         asinh: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.asinh(toNumber(a));
             },
         },
         atan: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.atan(toNumber(a));
             },
         },
         atan2: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return Math.atan2(toNumber(a), toNumber(b));
             },
         },
         atanh: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.atanh(toNumber(a));
             },
         },
         cbrt: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.cbrt(toNumber(a));
             },
         },
         ceil: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.ceil(toNumber(a));
             },
         },
         cos: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.cos(toNumber(a));
             },
         },
         cosh: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.cosh(toNumber(a));
             },
         },
         exp: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.exp(toNumber(a));
             },
         },
         floor: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.floor(toNumber(a));
             },
         },
         hypot: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.hypot(toNumber(a));
             },
         },
         log: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.log(toNumber(a));
             },
         },
         log10: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.log10(toNumber(a));
             },
         },
         log2: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.log2(toNumber(a));
             },
         },
         max: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.max(toNumber(a));
             },
         },
         min: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.min(toNumber(a));
             },
         },
         round: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.round(toNumber(a));
             },
         },
         sign: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.sign(toNumber(a));
             },
         },
         sin: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.sin(toNumber(a));
             },
         },
         sinh: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.sinh(toNumber(a));
             },
         },
         sqrt: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.sqrt(toNumber(a));
             },
         },
         tan: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.tan(toNumber(a));
             },
         },
         tanh: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.tanh(toNumber(a));
             },
         },
         trunc: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return Math.trunc(toNumber(a));
             },
         },
         fromCharCode: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return String.fromCharCode(Number(a));
             },
         },
         fromCodePoint: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return String.fromCodePoint(Number(a));
             },
         },
         parseInt: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return parseInt(toString(a), Number(b));
             },
         },
         parseFloat: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return parseFloat(toString(a));
             },
         },
         length: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return toString(a).length;
             },
         },
         charAt: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).charAt(Number(b));
             },
         },
         charCodeAt: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).charCodeAt(Number(b));
             },
         },
         codePointAt: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 var _a;
                 return (_a = toString(a).codePointAt(Number(b))) !== null && _a !== void 0 ? _a : 0;
             },
         },
         concat: {
-            f: function (ctx) {
+            f: function (ctx, scope) {
                 var ss = [];
-                for (var _i = 1; _i < arguments.length; _i++) {
-                    ss[_i - 1] = arguments[_i];
+                for (var _i = 2; _i < arguments.length; _i++) {
+                    ss[_i - 2] = arguments[_i];
                 }
                 return ''.concat.apply('', ss.map(function (s) { return toString(s); }));
             },
         },
         endsWith: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).endsWith(toString(b));
             },
         },
         includes: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).includes(toString(b));
             },
         },
         indexOf: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).indexOf(toString(b));
             },
         },
         lastIndexOf: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).lastIndexOf(toString(b));
             },
         },
         localeCompare: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).localeCompare(toString(b));
             },
         },
         match: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return !!toString(a).match(toString(b));
             },
         },
         matchAll: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return !!toString(a).match(toString(b));
             },
         },
         padEnd: {
-            f: function (ctx, a, b, c) {
+            f: function (ctx, scope, a, b, c) {
                 return toString(a).padEnd(Number(b), toString(c !== null && c !== void 0 ? c : ''));
             },
         },
         padStart: {
-            f: function (ctx, a, b, c) {
+            f: function (ctx, scope, a, b, c) {
                 return toString(a).padStart(Number(b), toString(c !== null && c !== void 0 ? c : ''));
             },
         },
         repeat: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).repeat(Number(b));
             },
         },
         replace: {
-            f: function (ctx, a, b, c) {
+            f: function (ctx, scope, a, b, c) {
                 return toString(a).replace(toString(b), toString(c));
             },
         },
         replaceAll: {
-            f: function (ctx, a, b, c) {
+            f: function (ctx, scope, a, b, c) {
                 return toString(a).replaceAll(toString(b), toString(c));
             },
         },
         slice: {
-            f: function (ctx, a, b, c) {
+            f: function (ctx, scope, a, b, c) {
                 return toString(a).slice(Number(b), Number(c !== null && c !== void 0 ? c : toString(a).length));
             },
         },
         startsWith: {
-            f: function (ctx, a, b) {
+            f: function (ctx, scope, a, b) {
                 return toString(a).startsWith(toString(b));
             },
         },
         substring: {
-            f: function (ctx, a, b, c) {
+            f: function (ctx, scope, a, b, c) {
                 return toString(a).substring(Number(b), Number(c));
             },
         },
         toLowerCase: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return toString(a).toLowerCase();
             },
         },
         toUpperCase: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return toString(a).toUpperCase();
             },
         },
         trim: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return toString(a).trim();
             },
         },
         trimEnd: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return toString(a).trimEnd();
             },
         },
         trimStart: {
-            f: function (ctx, a) {
+            f: function (ctx, scope, a) {
                 return toString(a).trimStart();
+            },
+        },
+        avg: {
+            f: function (ctx) {
+                var nn = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    nn[_i - 1] = arguments[_i];
+                }
+                return avg(nn.map(function (n) { return toNumber(n); }));
+            },
+        },
+        sum: {
+            f: function (ctx) {
+                var nn = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    nn[_i - 1] = arguments[_i];
+                }
+                return sum(nn.map(function (n) { return toNumber(n); }));
+            },
+        },
+        clamp: {
+            f: function (ctx, a, min, max) {
+                return clamp(toNumber(a), toNumber(min), toNumber(max));
             },
         },
     };
@@ -1433,15 +1467,38 @@
             return srcMap(expr, $, $next);
         });
     }));
+    function clamp(n, min, max) {
+        if (min === void 0) { min = 0; }
+        if (max === void 0) { max = 1; }
+        if (n < min)
+            return min;
+        if (n > max)
+            return max;
+        return n;
+    }
+    function avg(nn) {
+        if (nn.length < 1)
+            return 0;
+        return sum(nn) / nn.length;
+    }
+    function sum(nn) {
+        var n = 0;
+        for (var i = 0; i < nn.length; i++)
+            n += nn[i];
+        return n;
+    }
 
     exports.CONSTS = CONSTS;
     exports.STDLIB = STDLIB;
+    exports.avg = avg;
+    exports.clamp = clamp;
     exports.createExprContext = createExprContext;
     exports["default"] = evaluateExpr;
     exports.evaluateExpr = evaluateExpr;
     exports.executeAst = executeAst;
     exports.exprToIdentifier = exprToIdentifier;
     exports.parseExpr = parseExpr;
+    exports.sum = sum;
     exports.toBoolean = toBoolean;
     exports.toNumber = toNumber;
     exports.toScalar = toScalar;
