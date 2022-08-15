@@ -241,26 +241,26 @@
         var _a;
         if (ctx === void 0) { ctx = createExprContext({}); }
         return __awaiter(this, void 0, void 0, function () {
-            var _b, value, fdef, args, left, right, _c, _d, _e, _f, _g, _h, _j, binop, result, unop, accum, i, _k, kind, value_1, _l;
+            var _b, value, fdef, args, left, right, _c, _d, _e, _f, _g, _h, _j, result_1, _k, binop, result, unop, accum, i, _l, kind, value_1, _m;
             var _this = this;
-            return __generator(this, function (_m) {
-                switch (_m.label) {
+            return __generator(this, function (_o) {
+                switch (_o.label) {
                     case 0:
                         _b = ast.type;
                         switch (_b) {
                             case 'Literal': return [3 /*break*/, 1];
                             case 'Identifier': return [3 /*break*/, 2];
                             case 'CallExpression': return [3 /*break*/, 4];
-                            case 'BinaryExpression': return [3 /*break*/, 14];
-                            case 'TernaryExpression': return [3 /*break*/, 15];
-                            case 'UnaryExpression': return [3 /*break*/, 20];
-                            case 'TemplateLiteral': return [3 /*break*/, 21];
+                            case 'BinaryExpression': return [3 /*break*/, 15];
+                            case 'TernaryExpression': return [3 /*break*/, 16];
+                            case 'UnaryExpression': return [3 /*break*/, 21];
+                            case 'TemplateLiteral': return [3 /*break*/, 22];
                         }
-                        return [3 /*break*/, 27];
+                        return [3 /*break*/, 28];
                     case 1: return [2 /*return*/, ast.value];
                     case 2: return [4 /*yield*/, ctx.get(scope, ast.name)];
                     case 3:
-                        value = _m.sent();
+                        value = _o.sent();
                         return [2 /*return*/, value !== undefined ? value : ast.name];
                     case 4:
                         fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
@@ -280,7 +280,7 @@
                                 }
                             }); }); })];
                     case 5:
-                        _d.apply(_c, _e.concat([__spreadArray.apply(void 0, _f.concat([(_m.sent()), false]))]));
+                        _d.apply(_c, _e.concat([__spreadArray.apply(void 0, _f.concat([(_o.sent()), false]))]));
                         return [3 /*break*/, 8];
                     case 6:
                         _h = (_g = args.push).apply;
@@ -292,20 +292,27 @@
                                 }
                             }); }); })];
                     case 7:
-                        _h.apply(_g, _j.concat([(_m.sent())]));
-                        _m.label = 8;
+                        _h.apply(_g, _j.concat([(_o.sent())]));
+                        _o.label = 8;
                     case 8:
-                        if (!fdef) return [3 /*break*/, 11];
+                        if (!fdef) return [3 /*break*/, 12];
                         if (!fdef.async) return [3 /*break*/, 10];
                         return [4 /*yield*/, fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false))];
-                    case 9: return [2 /*return*/, _m.sent()];
-                    case 10: return [2 /*return*/, fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false))];
+                    case 9:
+                        _k = _o.sent();
+                        return [3 /*break*/, 11];
+                    case 10:
+                        _k = fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false));
+                        _o.label = 11;
                     case 11:
-                        if (!ctx.call) return [3 /*break*/, 13];
+                        result_1 = _k;
+                        return [2 /*return*/, result_1];
+                    case 12:
+                        if (!ctx.call) return [3 /*break*/, 14];
                         return [4 /*yield*/, ctx.call(ctx, scope, ast.callee.name, args)];
-                    case 12: return [2 /*return*/, _m.sent()];
-                    case 13: throw new Error("Function not found: '".concat(ast.callee.name, "'"));
-                    case 14:
+                    case 13: return [2 /*return*/, _o.sent()];
+                    case 14: throw new Error("Function not found: '".concat(ast.callee.name, "'"));
+                    case 15:
                         binop = Object.keys(ctx.binops).includes(ast.operator)
                             ? ctx.binops[ast.operator]
                             : null;
@@ -320,15 +327,15 @@
                                 }, ctx, scope)];
                         }
                         throw new Error("Operator not found: '".concat(ast.operator, "'"));
-                    case 15: return [4 /*yield*/, executeAst(ast.test, ctx, scope)];
-                    case 16:
-                        result = _m.sent();
-                        if (!toBoolean(result)) return [3 /*break*/, 18];
+                    case 16: return [4 /*yield*/, executeAst(ast.test, ctx, scope)];
+                    case 17:
+                        result = _o.sent();
+                        if (!toBoolean(result)) return [3 /*break*/, 19];
                         return [4 /*yield*/, executeAst(ast.consequent, ctx, scope)];
-                    case 17: return [2 /*return*/, _m.sent()];
-                    case 18: return [4 /*yield*/, executeAst(ast.alternate, ctx, scope)];
-                    case 19: return [2 /*return*/, _m.sent()];
-                    case 20:
+                    case 18: return [2 /*return*/, _o.sent()];
+                    case 19: return [4 /*yield*/, executeAst(ast.alternate, ctx, scope)];
+                    case 20: return [2 /*return*/, _o.sent()];
+                    case 21:
                         unop = Object.keys(ctx.unops).includes(ast.operator)
                             ? ctx.unops[ast.operator]
                             : null;
@@ -343,28 +350,28 @@
                                 }, ctx, scope)];
                         }
                         throw new Error("Operator not found: '".concat(ast.operator, "'"));
-                    case 21:
+                    case 22:
                         accum = '';
                         i = 0;
-                        _m.label = 22;
-                    case 22:
-                        if (!(i < ast.parts.length)) return [3 /*break*/, 26];
-                        _k = ast.parts[i], kind = _k[0], value_1 = _k[1];
-                        if (!(kind === 'chunks')) return [3 /*break*/, 23];
-                        accum += value_1;
-                        return [3 /*break*/, 25];
+                        _o.label = 23;
                     case 23:
-                        if (!(kind === 'expression')) return [3 /*break*/, 25];
-                        _l = accum;
-                        return [4 /*yield*/, executeAst(value_1, ctx, scope)];
+                        if (!(i < ast.parts.length)) return [3 /*break*/, 27];
+                        _l = ast.parts[i], kind = _l[0], value_1 = _l[1];
+                        if (!(kind === 'chunks')) return [3 /*break*/, 24];
+                        accum += value_1;
+                        return [3 /*break*/, 26];
                     case 24:
-                        accum = _l + ((_m.sent()) + '');
-                        _m.label = 25;
+                        if (!(kind === 'expression')) return [3 /*break*/, 26];
+                        _m = accum;
+                        return [4 /*yield*/, executeAst(value_1, ctx, scope)];
                     case 25:
+                        accum = _m + ((_o.sent()) + '');
+                        _o.label = 26;
+                    case 26:
                         i++;
-                        return [3 /*break*/, 22];
-                    case 26: return [2 /*return*/, accum];
-                    case 27: throw new Error("Syntax error");
+                        return [3 /*break*/, 23];
+                    case 27: return [2 /*return*/, accum];
+                    case 28: throw new Error("Syntax error");
                 }
             });
         });

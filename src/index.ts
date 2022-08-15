@@ -15,6 +15,7 @@ export type TExprFuncSync = (
 export type TExprFuncDef = {
   assignment?: true;
   lazy?: true;
+  macro?: true;
 } & (
   | {
       async: true;
@@ -279,10 +280,10 @@ export async function executeAst(
         );
       }
       if (fdef) {
-        if (fdef.async) {
-          return await fdef.f(ctx, scope, ...args);
-        }
-        return fdef.f(ctx, scope, ...args);
+        const result = fdef.async
+          ? await fdef.f(ctx, scope, ...args)
+          : fdef.f(ctx, scope, ...args);
+        return result;
       } else if (ctx.call) {
         return await ctx.call(ctx, scope, ast.callee.name, args);
       }

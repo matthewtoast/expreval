@@ -7,6 +7,7 @@ export declare type TExprFuncSync = (ctx: TExprContext, scope: TScope, ...args: 
 export declare type TExprFuncDef = {
     assignment?: true;
     lazy?: true;
+    macro?: true;
 } & ({
     async: true;
     f: TExprFuncAsync;
