@@ -2,16 +2,20 @@ import * as seedrandom from 'seedrandom';
 
 export type DictOf<T> = { [key: string]: T };
 export type TExprScalar = number | string | boolean | null;
+export type TExprArray = TExprValue[];
+export type TExprObject = { [key: string]: TExprValue };
+export type TExprValue = TExprScalar | TExprArray | TExprObject;
+
 export type TExprFuncAsync = (
   ctx: TExprContext,
   scope: TScope,
-  ...args: TExprScalar[]
-) => Promise<TExprScalar>;
+  ...args: TExprValue[]
+) => Promise<TExprValue>;
 export type TExprFuncSync = (
   ctx: TExprContext,
   scope: TScope,
-  ...args: TExprScalar[]
-) => TExprScalar;
+  ...args: TExprValue[]
+) => TExprValue;
 export type TExprFuncDef = {
   assignment?: true;
   lazy?: true;
@@ -35,7 +39,7 @@ export type TUnopDef = {
 };
 
 export type TExprResult = {
-  result: TExprScalar;
+  result: TExprValue;
   ctx: TExprContext;
 };
 
@@ -44,19 +48,19 @@ export type TExprContext = {
   funcs: DictOf<TExprFuncDef>;
   binops: DictOf<TBinopDef>;
   unops: DictOf<TUnopDef>;
-  get: (scope: TScope, key: string) => Promise<TExprScalar>;
-  set: (scope: TScope, key: string, value: TExprScalar) => Promise<void>;
+  get: (scope: TScope, key: string) => Promise<TExprValue>;
+  set: (scope: TScope, key: string, value: TExprValue) => Promise<void>;
   call?:
     | ((
         ctx: TExprContext,
         scope: TScope,
         method: string,
-        args: TExprScalar[],
-      ) => Promise<TExprScalar>)
+        args: TExprValue[],
+      ) => Promise<TExprValue>)
     | undefined;
 };
 
-export type TScope = { [key: string]: TExprScalar };
+export type TScope = { [key: string]: TExprValue };
 
 export type TExpression =
   | TCallExpression
@@ -65,11 +69,35 @@ export type TExpression =
   | TLiteralExpression
   | TTernaryExpression
   | TUnaryExpression
-  | TTemplateLiteralExpression;
+  | TTemplateLiteralExpression
+  | TArrayLiteralExpression
+  | TObjectLiteralExpression
+  | TComputedPropertyExpression;
 
 export type TTemplateLiteralExpression = {
   type: 'TemplateLiteral';
   parts: [['chunks', string] | ['expression', TExpression]];
+};
+
+export type TComputedPropertyExpression = {
+  type: 'ComputedProperty';
+  expression: TExpression;
+};
+
+export type TArrayLiteralExpression = {
+  type: 'ArrayLiteral';
+  elements: TExpression[];
+};
+
+export type TObjectLiteralExpression = {
+  type: 'ObjectLiteral';
+  properties: {
+    name:
+      | TIdentifierExpression
+      | TLiteralExpression
+      | TComputedPropertyExpression;
+    value: TExpression;
+  }[];
 };
 
 export type TCallExpression = {
@@ -109,7 +137,7 @@ export type TUnaryExpression = {
   operator: string;
 };
 
-export const CONSTS: DictOf<TExprScalar> = {
+export const CONSTS: DictOf<TExprValue> = {
   E: Math.E,
   LN10: Math.LN10,
   LN2: Math.LN2,
@@ -198,7 +226,7 @@ export function createExprContext({
   set,
   call,
 }: Partial<TExprContext> & { seed?: string }): TExprContext {
-  const vars: { [key: string]: TExprScalar } = {};
+  const vars: { [key: string]: TExprValue } = {};
   return {
     rng: seedrandom.default(seed),
     funcs: { ...STDLIB, ...funcs },
@@ -249,7 +277,7 @@ export async function executeAst(
   ast: TExpression,
   ctx: TExprContext = createExprContext({}),
   scope: TScope,
-): Promise<TExprScalar> {
+): Promise<TExprValue> {
   switch (ast.type) {
     case 'Literal':
       return ast.value;
@@ -260,7 +288,7 @@ export async function executeAst(
       const fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
         ? ctx.funcs[ast.callee.name]
         : null;
-      const args: TExprScalar[] = [];
+      const args: TExprValue[] = [];
       if (fdef && fdef.assignment && ast.arguments.length > 1) {
         const left = exprToIdentifier(ast.arguments[0]!) ?? '';
         const right = ast.arguments.slice(1);
@@ -343,7 +371,30 @@ export async function executeAst(
         }
       }
       return accum;
+    case 'ComputedProperty':
+      return await executeAst(ast.expression, ctx, scope);
+    case 'ArrayLiteral':
+      return await asyncMap(
+        ast.elements,
+        async (element) => await executeAst(element, ctx, scope),
+      );
+    case 'ObjectLiteral':
+      const obj = {};
+      for (let i = 0; i < ast.properties.length; i++) {
+        const { name, value } = ast.properties[i]!;
+        let key: string = '';
+        if (name.type === 'ComputedProperty') {
+          key = toString(await executeAst(name.expression, ctx, scope));
+        } else if (name.type === 'Identifier') {
+          key = name.name; // Don't evaluate this if 'bare'
+        } else if (name.type === 'Literal') {
+          key = name.value;
+        }
+        obj[key] = await executeAst(value, ctx, scope);
+      }
+      return obj;
     default:
+      console.info(ast);
       throw new Error(`Syntax error`);
   }
 }
@@ -368,7 +419,7 @@ export function toNumber(v: any, fallback: number = 0): number {
   return fallback;
 }
 
-export function toBoolean(v: TExprScalar): boolean {
+export function toBoolean(v: TExprValue): boolean {
   if (!v) {
     return false;
   }
@@ -384,17 +435,51 @@ export function toBoolean(v: TExprScalar): boolean {
   return true;
 }
 
-export function toString(v: TExprScalar, radix: number = 10): string {
+export function toString(v: any, radix: number = 10): string {
   if (typeof v === 'number') {
     return v.toString(radix);
   }
   if (v === true || v === 'true') {
     return 'true';
   }
-  if (!v || v === 'false') {
-    return 'false';
+  if (!v) {
+    return '';
   }
   return v + '';
+}
+
+export function toObject(v: any): TExprObject {
+  if (!v) {
+    return {};
+  }
+  if (v && typeof v === 'object') {
+    const o = {};
+    for (const key in v) {
+      o[key] = toScalar(v[key]);
+    }
+    return o;
+  }
+  return {};
+}
+
+export function toArray(v: any): TExprArray {
+  if (!v) {
+    return [];
+  }
+  if (Array.isArray(v)) {
+    return v.map((e) => toScalar(e));
+  }
+  if (v && typeof v === 'object') {
+    return Object.keys(v).map((k) => toScalar(v[k]));
+  }
+  if (
+    typeof v === 'number' ||
+    typeof v === 'string' ||
+    typeof v === 'boolean'
+  ) {
+    return [v];
+  }
+  return [];
 }
 
 export function toScalar(n: any, radix: number = 10): TExprScalar {
@@ -410,10 +495,13 @@ export function toScalar(n: any, radix: number = 10): TExprScalar {
   if (!n) {
     return null;
   }
+  if (typeof n === 'object') {
+    return '';
+  }
   return n + '';
 }
 
-async function asyncMap<V, T>(
+export async function asyncMap<V, T>(
   array: V[],
   callback: (el: V, idx: number, arr: V[]) => Promise<T>,
 ) {
@@ -425,7 +513,7 @@ async function asyncMap<V, T>(
   return out;
 }
 
-async function setVar<T extends TExprScalar>(
+async function setVar<T extends TExprValue>(
   ctx: TExprContext,
   scope: TScope,
   name: any,
@@ -440,7 +528,7 @@ async function getVar(
   ctx: TExprContext,
   scope: TScope,
   name: any,
-): Promise<TExprScalar> {
+): Promise<TExprValue> {
   return (await ctx.get(scope, name + '')) ?? null;
 }
 
@@ -458,21 +546,27 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
   empty: {
     f(ctx, scope, v) {
+      if (Array.isArray(v)) {
+        return v.length < 1;
+      }
+      if (v && typeof v === 'object') {
+        return Object.keys(v).length < 1;
+      }
       return !v;
     },
   },
   blank: {
     f(ctx, scope, v) {
+      if (Array.isArray(v)) {
+        return v.length < 1;
+      }
+      if (v && typeof v === 'object') {
+        return Object.keys(v).length < 1;
+      }
       if (typeof v === 'string' && (!v || v.match(/^\s+$/))) {
         return true;
       }
       return !v;
-    },
-  },
-
-  join: {
-    f(ctx, scope, spacer, ...ss) {
-      return ss.join(toString(spacer));
     },
   },
 
@@ -556,7 +650,10 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
 
   all: {
-    f(ctx, scope, ...xs) {
+    f(ctx, scope, xs) {
+      if (!Array.isArray(xs)) {
+        return !!xs;
+      }
       for (let i = 0; i < xs.length; i++) {
         if (!xs[i]) {
           return false;
@@ -566,7 +663,10 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   any: {
-    f(ctx, scope, ...xs) {
+    f(ctx, scope, xs) {
+      if (!Array.isArray(xs)) {
+        return !!xs;
+      }
       for (let i = 0; i < xs.length; i++) {
         if (xs[i]) {
           return true;
@@ -576,13 +676,13 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   some: {
-    f(ctx, scope, ...xs) {
-      return !!STDLIB['any']!.f(ctx, scope, ...xs);
+    f(ctx, scope, xs) {
+      return !!STDLIB['any']!.f(ctx, scope, xs);
     },
   },
   none: {
-    f(ctx, scope, ...xs) {
-      return !STDLIB['any']!.f(ctx, scope, ...xs);
+    f(ctx, scope, xs) {
+      return !STDLIB['any']!.f(ctx, scope, xs);
     },
   },
 
@@ -896,11 +996,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return parseFloat(toString(a));
     },
   },
-  length: {
-    f(ctx, scope, a) {
-      return toString(a).length;
-    },
-  },
+
   charAt: {
     f(ctx, scope, a, b) {
       return toString(a).charAt(Number(b));
@@ -916,31 +1012,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return toString(a).codePointAt(Number(b)) ?? 0;
     },
   },
-  concat: {
-    f(ctx, scope, ...ss) {
-      return ''.concat(...ss.map((s) => toString(s)));
-    },
-  },
-  endsWith: {
-    f(ctx, scope, a, b) {
-      return toString(a).endsWith(toString(b));
-    },
-  },
-  includes: {
-    f(ctx, scope, a, b) {
-      return toString(a).includes(toString(b));
-    },
-  },
-  indexOf: {
-    f(ctx, scope, a, b) {
-      return toString(a).indexOf(toString(b));
-    },
-  },
-  lastIndexOf: {
-    f(ctx, scope, a, b) {
-      return toString(a).lastIndexOf(toString(b));
-    },
-  },
+
   localeCompare: {
     f(ctx, scope, a, b) {
       return toString(a).localeCompare(toString(b));
@@ -981,11 +1053,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return toString(a).replaceAll(toString(b), toString(c));
     },
   },
-  slice: {
-    f(ctx, scope, a, b, c) {
-      return toString(a).slice(Number(b), Number(c ?? toString(a).length));
-    },
-  },
   startsWith: {
     f(ctx, scope, a, b) {
       return toString(a).startsWith(toString(b));
@@ -1022,19 +1089,173 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
 
-  avg: {
-    f(ctx, ...nn) {
-      return avg(nn.map((n) => toNumber(n)));
-    },
-  },
-  sum: {
-    f(ctx, ...nn) {
-      return sum(nn.map((n) => toNumber(n)));
-    },
-  },
   clamp: {
     f(ctx, a, min, max) {
       return clamp(toNumber(a), toNumber(min), toNumber(max));
+    },
+  },
+
+  avg: {
+    f(ctx, nn) {
+      return avg(toArray(nn).map((n) => toNumber(n)));
+    },
+  },
+  sum: {
+    f(ctx, nn) {
+      return sum(toArray(nn).map((n) => toNumber(n)));
+    },
+  },
+  join: {
+    f(ctx, scope, ss, spacer) {
+      return toArray(ss).join(toString(spacer));
+    },
+  },
+  split: {
+    f(ctx, scope, s, spacer) {
+      return toString(s).split(toString(spacer));
+    },
+  },
+  first: {
+    f(ctx, scope, arr) {
+      if (typeof arr === 'string') {
+        return arr[0] ?? null;
+      }
+      return toArray(arr)[0] ?? null;
+    },
+  },
+  last: {
+    f(ctx, scope, arr) {
+      if (typeof arr === 'string') {
+        return arr[arr.length] ?? null;
+      }
+      arr = toArray(arr);
+      return arr[arr.length] ?? null;
+    },
+  },
+  length: {
+    f(ctx, scope, arr) {
+      if (typeof arr === 'string') {
+        return arr.length;
+      }
+      return toArray(arr).length;
+    },
+  },
+  concat: {
+    f(ctx, scope, aa, bb) {
+      if (typeof aa === 'string') {
+        return aa + toString(bb);
+      }
+      return [...toArray(aa), ...toArray(bb)];
+    },
+  },
+  endsWith: {
+    f(ctx, scope, a, b, c = '') {
+      if (Array.isArray(a)) {
+        a = a.join(toString(c));
+      }
+      return toString(a).endsWith(toString(b));
+    },
+  },
+  includes: {
+    f(ctx, scope, a, b) {
+      if (typeof a === 'string') {
+        return a.includes(toString(b));
+      }
+      return toArray(a).includes(b);
+    },
+  },
+  lastIndexOf: {
+    f(ctx, scope, a, b) {
+      if (typeof a === 'string') {
+        return a.lastIndexOf(toString(b));
+      }
+      return toArray(a).lastIndexOf(b);
+    },
+  },
+  indexOf: {
+    f(ctx, scope, a, b) {
+      if (typeof a === 'string') {
+        return a.indexOf(toString(b));
+      }
+      return toArray(a).indexOf(b);
+    },
+  },
+  nth: {
+    f(ctx, scope, a, b) {
+      if (typeof a === 'string') {
+        return a[toNumber(b)] ?? null;
+      }
+      return toArray(a)[toNumber(b)] ?? null;
+    },
+  },
+  reverse: {
+    f(ctx, scope, a) {
+      if (typeof a === 'string') {
+        return a.split('').reverse().join('');
+      }
+      return toArray(a).reverse();
+    },
+  },
+  take: {
+    f(ctx, scope, a, n) {
+      if (typeof a === 'string') {
+        return a.slice(0, toNumber(n));
+      }
+      return toArray(a).slice(0, toNumber(n));
+    },
+  },
+  head: {
+    f(ctx, scope, arr) {
+      return toArray(arr).slice(0, -1);
+    },
+  },
+  tail: {
+    f(ctx, scope, arr) {
+      return toArray(arr).slice(1);
+    },
+  },
+  slice: {
+    f(ctx, scope, arr, a, b) {
+      if (typeof arr === 'string') {
+        return arr.slice(toNumber(a), toNumber(b));
+      }
+      return toArray(arr).slice(toNumber(a), toNumber(b));
+    },
+  },
+  randEl: {
+    f(ctx, scope, arr) {
+      arr = toArray(arr);
+      const i = STDLIB['randIntInRange']!.f(
+        ctx,
+        scope,
+        0,
+        arr.length - 1,
+      ) as number;
+      return arr[i] ?? null;
+    },
+  },
+
+  keys: {
+    f(ctx, scope, obj) {
+      return Object.keys(toObject(obj));
+    },
+  },
+  values: {
+    f(ctx, scope, obj) {
+      return Object.values(toObject(obj));
+    },
+  },
+  get: {
+    f(ctx, scope, obj, key) {
+      return toObject(obj)[toString(key)] ?? null;
+    },
+  },
+  set: {
+    f(ctx, scope, obj, key, value) {
+      if (obj && typeof obj === 'object') {
+        obj[toString(key)] = value;
+      }
+      return obj;
     },
   },
 };
@@ -1334,6 +1555,7 @@ const DefaultGrammar = IgnoreWhitespace(
       ),
       (parts) => ({ type: 'TemplateLiteral', parts }),
     );
+
     const Literal = Any(
       StringLiteral,
       NumericLiteral,
@@ -1357,8 +1579,48 @@ const DefaultGrammar = IgnoreWhitespace(
       (leafs) =>
         leafs.length > 1 ? { type: 'CompoundExpression', leafs } : leafs[0],
     );
+    const ComputedPropertyName = Node(
+      All('[', CompoundExpression, ']'),
+      ([expression]) => ({ type: 'ComputedProperty', expression }),
+    );
+    const PropertyName = Any(
+      Identifier,
+      StringLiteral,
+      NumericLiteral,
+      ComputedPropertyName,
+    );
+    const PropertyDefinition = Node(
+      Any(All(PropertyName, ':', Expression)),
+      ([name, value]) => ({
+        name,
+        value,
+      }),
+    );
+    const PropertyDefinitions = All(
+      PropertyDefinition,
+      Star(All(',', PropertyDefinition)),
+    );
+    const PropertyDefinitionList = Optional(
+      All(PropertyDefinitions, Optional(',')),
+    );
+    const ObjectLiteral = Node(
+      All('{', PropertyDefinitionList, '}'),
+      (properties) => ({ type: 'ObjectLiteral', properties }),
+    );
+    const Element = Any(Expression);
+    const ElementList = All(Element, Star(All(',', Element)));
+    const ArrayLiteral = Node(All('[', ElementList, ']'), (elements) => ({
+      type: 'ArrayLiteral',
+      elements,
+    }));
     const PrimaryExpression = Node(
-      Any(Literal, Identifier, All('(', CompoundExpression, ')')),
+      Any(
+        Literal,
+        Identifier,
+        ArrayLiteral,
+        ObjectLiteral,
+        All('(', CompoundExpression, ')'),
+      ),
       ([expr], $, $next) => srcMap(expr, $, $next),
     );
     const CallExpression = Node(

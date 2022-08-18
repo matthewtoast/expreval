@@ -217,10 +217,10 @@ function executeAst(ast, ctx, scope) {
     var _a;
     if (ctx === void 0) { ctx = createExprContext({}); }
     return __awaiter(this, void 0, void 0, function () {
-        var _b, value, fdef, args, left, right, _c, _d, _e, _f, _g, _h, _j, result_1, _k, binop, result, unop, accum, i, _l, kind, value_1, _m;
+        var _b, value, fdef, args, left, right, _c, _d, _e, _f, _g, _h, _j, result_1, _k, binop, result, unop, accum, i, _l, kind, value_1, _m, obj, i, _o, name, value_2, key, _p, _q, _r;
         var _this = this;
-        return __generator(this, function (_o) {
-            switch (_o.label) {
+        return __generator(this, function (_s) {
+            switch (_s.label) {
                 case 0:
                     _b = ast.type;
                     switch (_b) {
@@ -231,12 +231,15 @@ function executeAst(ast, ctx, scope) {
                         case 'TernaryExpression': return [3 /*break*/, 16];
                         case 'UnaryExpression': return [3 /*break*/, 21];
                         case 'TemplateLiteral': return [3 /*break*/, 22];
+                        case 'ComputedProperty': return [3 /*break*/, 28];
+                        case 'ArrayLiteral': return [3 /*break*/, 30];
+                        case 'ObjectLiteral': return [3 /*break*/, 32];
                     }
-                    return [3 /*break*/, 28];
+                    return [3 /*break*/, 40];
                 case 1: return [2 /*return*/, ast.value];
                 case 2: return [4 /*yield*/, ctx.get(scope, ast.name)];
                 case 3:
-                    value = _o.sent();
+                    value = _s.sent();
                     return [2 /*return*/, value !== undefined ? value : ast.name];
                 case 4:
                     fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
@@ -256,7 +259,7 @@ function executeAst(ast, ctx, scope) {
                             }
                         }); }); })];
                 case 5:
-                    _d.apply(_c, _e.concat([__spreadArray.apply(void 0, _f.concat([(_o.sent()), false]))]));
+                    _d.apply(_c, _e.concat([__spreadArray.apply(void 0, _f.concat([(_s.sent()), false]))]));
                     return [3 /*break*/, 8];
                 case 6:
                     _h = (_g = args.push).apply;
@@ -268,25 +271,25 @@ function executeAst(ast, ctx, scope) {
                             }
                         }); }); })];
                 case 7:
-                    _h.apply(_g, _j.concat([(_o.sent())]));
-                    _o.label = 8;
+                    _h.apply(_g, _j.concat([(_s.sent())]));
+                    _s.label = 8;
                 case 8:
                     if (!fdef) return [3 /*break*/, 12];
                     if (!fdef.async) return [3 /*break*/, 10];
                     return [4 /*yield*/, fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false))];
                 case 9:
-                    _k = _o.sent();
+                    _k = _s.sent();
                     return [3 /*break*/, 11];
                 case 10:
                     _k = fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false));
-                    _o.label = 11;
+                    _s.label = 11;
                 case 11:
                     result_1 = _k;
                     return [2 /*return*/, result_1];
                 case 12:
                     if (!ctx.call) return [3 /*break*/, 14];
                     return [4 /*yield*/, ctx.call(ctx, scope, ast.callee.name, args)];
-                case 13: return [2 /*return*/, _o.sent()];
+                case 13: return [2 /*return*/, _s.sent()];
                 case 14: throw new Error("Function not found: '".concat(ast.callee.name, "'"));
                 case 15:
                     binop = Object.keys(ctx.binops).includes(ast.operator)
@@ -305,12 +308,12 @@ function executeAst(ast, ctx, scope) {
                     throw new Error("Operator not found: '".concat(ast.operator, "'"));
                 case 16: return [4 /*yield*/, executeAst(ast.test, ctx, scope)];
                 case 17:
-                    result = _o.sent();
+                    result = _s.sent();
                     if (!toBoolean(result)) return [3 /*break*/, 19];
                     return [4 /*yield*/, executeAst(ast.consequent, ctx, scope)];
-                case 18: return [2 /*return*/, _o.sent()];
+                case 18: return [2 /*return*/, _s.sent()];
                 case 19: return [4 /*yield*/, executeAst(ast.alternate, ctx, scope)];
-                case 20: return [2 /*return*/, _o.sent()];
+                case 20: return [2 /*return*/, _s.sent()];
                 case 21:
                     unop = Object.keys(ctx.unops).includes(ast.operator)
                         ? ctx.unops[ast.operator]
@@ -329,7 +332,7 @@ function executeAst(ast, ctx, scope) {
                 case 22:
                     accum = '';
                     i = 0;
-                    _o.label = 23;
+                    _s.label = 23;
                 case 23:
                     if (!(i < ast.parts.length)) return [3 /*break*/, 27];
                     _l = ast.parts[i], kind = _l[0], value_1 = _l[1];
@@ -341,13 +344,57 @@ function executeAst(ast, ctx, scope) {
                     _m = accum;
                     return [4 /*yield*/, executeAst(value_1, ctx, scope)];
                 case 25:
-                    accum = _m + ((_o.sent()) + '');
-                    _o.label = 26;
+                    accum = _m + ((_s.sent()) + '');
+                    _s.label = 26;
                 case 26:
                     i++;
                     return [3 /*break*/, 23];
                 case 27: return [2 /*return*/, accum];
-                case 28: throw new Error("Syntax error");
+                case 28: return [4 /*yield*/, executeAst(ast.expression, ctx, scope)];
+                case 29: return [2 /*return*/, _s.sent()];
+                case 30: return [4 /*yield*/, asyncMap(ast.elements, function (element) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
+                        switch (_a.label) {
+                            case 0: return [4 /*yield*/, executeAst(element, ctx, scope)];
+                            case 1: return [2 /*return*/, _a.sent()];
+                        }
+                    }); }); })];
+                case 31: return [2 /*return*/, _s.sent()];
+                case 32:
+                    obj = {};
+                    i = 0;
+                    _s.label = 33;
+                case 33:
+                    if (!(i < ast.properties.length)) return [3 /*break*/, 39];
+                    _o = ast.properties[i], name = _o.name, value_2 = _o.value;
+                    key = '';
+                    if (!(name.type === 'ComputedProperty')) return [3 /*break*/, 35];
+                    _p = toString;
+                    return [4 /*yield*/, executeAst(name.expression, ctx, scope)];
+                case 34:
+                    key = _p.apply(void 0, [_s.sent()]);
+                    return [3 /*break*/, 36];
+                case 35:
+                    if (name.type === 'Identifier') {
+                        key = name.name; // Don't evaluate this if 'bare'
+                    }
+                    else if (name.type === 'Literal') {
+                        key = name.value;
+                    }
+                    _s.label = 36;
+                case 36:
+                    _q = obj;
+                    _r = key;
+                    return [4 /*yield*/, executeAst(value_2, ctx, scope)];
+                case 37:
+                    _q[_r] = _s.sent();
+                    _s.label = 38;
+                case 38:
+                    i++;
+                    return [3 /*break*/, 33];
+                case 39: return [2 /*return*/, obj];
+                case 40:
+                    console.info(ast);
+                    throw new Error("Syntax error");
             }
         });
     });
@@ -394,10 +441,40 @@ function toString(v, radix) {
     if (v === true || v === 'true') {
         return 'true';
     }
-    if (!v || v === 'false') {
-        return 'false';
+    if (!v) {
+        return '';
     }
     return v + '';
+}
+function toObject(v) {
+    if (!v) {
+        return {};
+    }
+    if (v && typeof v === 'object') {
+        var o = {};
+        for (var key in v) {
+            o[key] = toScalar(v[key]);
+        }
+        return o;
+    }
+    return {};
+}
+function toArray(v) {
+    if (!v) {
+        return [];
+    }
+    if (Array.isArray(v)) {
+        return v.map(function (e) { return toScalar(e); });
+    }
+    if (v && typeof v === 'object') {
+        return Object.keys(v).map(function (k) { return toScalar(v[k]); });
+    }
+    if (typeof v === 'number' ||
+        typeof v === 'string' ||
+        typeof v === 'boolean') {
+        return [v];
+    }
+    return [];
 }
 function toScalar(n, radix) {
     if (radix === void 0) { radix = 10; }
@@ -412,6 +489,9 @@ function toScalar(n, radix) {
     }
     if (!n) {
         return null;
+    }
+    if (typeof n === 'object') {
+        return '';
     }
     return n + '';
 }
@@ -483,24 +563,27 @@ var STDLIB = {
     },
     empty: {
         f: function (ctx, scope, v) {
+            if (Array.isArray(v)) {
+                return v.length < 1;
+            }
+            if (v && typeof v === 'object') {
+                return Object.keys(v).length < 1;
+            }
             return !v;
         },
     },
     blank: {
         f: function (ctx, scope, v) {
+            if (Array.isArray(v)) {
+                return v.length < 1;
+            }
+            if (v && typeof v === 'object') {
+                return Object.keys(v).length < 1;
+            }
             if (typeof v === 'string' && (!v || v.match(/^\s+$/))) {
                 return true;
             }
             return !v;
-        },
-    },
-    join: {
-        f: function (ctx, scope, spacer) {
-            var ss = [];
-            for (var _i = 3; _i < arguments.length; _i++) {
-                ss[_i - 3] = arguments[_i];
-            }
-            return ss.join(toString(spacer));
         },
     },
     setVar: {
@@ -620,10 +703,9 @@ var STDLIB = {
         },
     },
     all: {
-        f: function (ctx, scope) {
-            var xs = [];
-            for (var _i = 2; _i < arguments.length; _i++) {
-                xs[_i - 2] = arguments[_i];
+        f: function (ctx, scope, xs) {
+            if (!Array.isArray(xs)) {
+                return !!xs;
             }
             for (var i = 0; i < xs.length; i++) {
                 if (!xs[i]) {
@@ -634,10 +716,9 @@ var STDLIB = {
         },
     },
     any: {
-        f: function (ctx, scope) {
-            var xs = [];
-            for (var _i = 2; _i < arguments.length; _i++) {
-                xs[_i - 2] = arguments[_i];
+        f: function (ctx, scope, xs) {
+            if (!Array.isArray(xs)) {
+                return !!xs;
             }
             for (var i = 0; i < xs.length; i++) {
                 if (xs[i]) {
@@ -648,23 +729,13 @@ var STDLIB = {
         },
     },
     some: {
-        f: function (ctx, scope) {
-            var _a;
-            var xs = [];
-            for (var _i = 2; _i < arguments.length; _i++) {
-                xs[_i - 2] = arguments[_i];
-            }
-            return !!(_a = STDLIB['any']).f.apply(_a, __spreadArray([ctx, scope], xs, false));
+        f: function (ctx, scope, xs) {
+            return !!STDLIB['any'].f(ctx, scope, xs);
         },
     },
     none: {
-        f: function (ctx, scope) {
-            var _a;
-            var xs = [];
-            for (var _i = 2; _i < arguments.length; _i++) {
-                xs[_i - 2] = arguments[_i];
-            }
-            return !(_a = STDLIB['any']).f.apply(_a, __spreadArray([ctx, scope], xs, false));
+        f: function (ctx, scope, xs) {
+            return !STDLIB['any'].f(ctx, scope, xs);
         },
     },
     or: {
@@ -972,11 +1043,6 @@ var STDLIB = {
             return parseFloat(toString(a));
         },
     },
-    length: {
-        f: function (ctx, scope, a) {
-            return toString(a).length;
-        },
-    },
     charAt: {
         f: function (ctx, scope, a, b) {
             return toString(a).charAt(Number(b));
@@ -991,35 +1057,6 @@ var STDLIB = {
         f: function (ctx, scope, a, b) {
             var _a;
             return (_a = toString(a).codePointAt(Number(b))) !== null && _a !== void 0 ? _a : 0;
-        },
-    },
-    concat: {
-        f: function (ctx, scope) {
-            var ss = [];
-            for (var _i = 2; _i < arguments.length; _i++) {
-                ss[_i - 2] = arguments[_i];
-            }
-            return ''.concat.apply('', ss.map(function (s) { return toString(s); }));
-        },
-    },
-    endsWith: {
-        f: function (ctx, scope, a, b) {
-            return toString(a).endsWith(toString(b));
-        },
-    },
-    includes: {
-        f: function (ctx, scope, a, b) {
-            return toString(a).includes(toString(b));
-        },
-    },
-    indexOf: {
-        f: function (ctx, scope, a, b) {
-            return toString(a).indexOf(toString(b));
-        },
-    },
-    lastIndexOf: {
-        f: function (ctx, scope, a, b) {
-            return toString(a).lastIndexOf(toString(b));
         },
     },
     localeCompare: {
@@ -1062,11 +1099,6 @@ var STDLIB = {
             return toString(a).replaceAll(toString(b), toString(c));
         },
     },
-    slice: {
-        f: function (ctx, scope, a, b, c) {
-            return toString(a).slice(Number(b), Number(c !== null && c !== void 0 ? c : toString(a).length));
-        },
-    },
     startsWith: {
         f: function (ctx, scope, a, b) {
             return toString(a).startsWith(toString(b));
@@ -1102,27 +1134,172 @@ var STDLIB = {
             return toString(a).trimStart();
         },
     },
-    avg: {
-        f: function (ctx) {
-            var nn = [];
-            for (var _i = 1; _i < arguments.length; _i++) {
-                nn[_i - 1] = arguments[_i];
-            }
-            return avg(nn.map(function (n) { return toNumber(n); }));
-        },
-    },
-    sum: {
-        f: function (ctx) {
-            var nn = [];
-            for (var _i = 1; _i < arguments.length; _i++) {
-                nn[_i - 1] = arguments[_i];
-            }
-            return sum(nn.map(function (n) { return toNumber(n); }));
-        },
-    },
     clamp: {
         f: function (ctx, a, min, max) {
             return clamp(toNumber(a), toNumber(min), toNumber(max));
+        },
+    },
+    avg: {
+        f: function (ctx, nn) {
+            return avg(toArray(nn).map(function (n) { return toNumber(n); }));
+        },
+    },
+    sum: {
+        f: function (ctx, nn) {
+            return sum(toArray(nn).map(function (n) { return toNumber(n); }));
+        },
+    },
+    join: {
+        f: function (ctx, scope, ss, spacer) {
+            return toArray(ss).join(toString(spacer));
+        },
+    },
+    split: {
+        f: function (ctx, scope, s, spacer) {
+            return toString(s).split(toString(spacer));
+        },
+    },
+    first: {
+        f: function (ctx, scope, arr) {
+            var _a, _b;
+            if (typeof arr === 'string') {
+                return (_a = arr[0]) !== null && _a !== void 0 ? _a : null;
+            }
+            return (_b = toArray(arr)[0]) !== null && _b !== void 0 ? _b : null;
+        },
+    },
+    last: {
+        f: function (ctx, scope, arr) {
+            var _a, _b;
+            if (typeof arr === 'string') {
+                return (_a = arr[arr.length]) !== null && _a !== void 0 ? _a : null;
+            }
+            arr = toArray(arr);
+            return (_b = arr[arr.length]) !== null && _b !== void 0 ? _b : null;
+        },
+    },
+    length: {
+        f: function (ctx, scope, arr) {
+            if (typeof arr === 'string') {
+                return arr.length;
+            }
+            return toArray(arr).length;
+        },
+    },
+    concat: {
+        f: function (ctx, scope, aa, bb) {
+            if (typeof aa === 'string') {
+                return aa + toString(bb);
+            }
+            return __spreadArray(__spreadArray([], toArray(aa), true), toArray(bb), true);
+        },
+    },
+    endsWith: {
+        f: function (ctx, scope, a, b, c) {
+            if (c === void 0) { c = ''; }
+            if (Array.isArray(a)) {
+                a = a.join(toString(c));
+            }
+            return toString(a).endsWith(toString(b));
+        },
+    },
+    includes: {
+        f: function (ctx, scope, a, b) {
+            if (typeof a === 'string') {
+                return a.includes(toString(b));
+            }
+            return toArray(a).includes(b);
+        },
+    },
+    lastIndexOf: {
+        f: function (ctx, scope, a, b) {
+            if (typeof a === 'string') {
+                return a.lastIndexOf(toString(b));
+            }
+            return toArray(a).lastIndexOf(b);
+        },
+    },
+    indexOf: {
+        f: function (ctx, scope, a, b) {
+            if (typeof a === 'string') {
+                return a.indexOf(toString(b));
+            }
+            return toArray(a).indexOf(b);
+        },
+    },
+    nth: {
+        f: function (ctx, scope, a, b) {
+            var _a, _b;
+            if (typeof a === 'string') {
+                return (_a = a[toNumber(b)]) !== null && _a !== void 0 ? _a : null;
+            }
+            return (_b = toArray(a)[toNumber(b)]) !== null && _b !== void 0 ? _b : null;
+        },
+    },
+    reverse: {
+        f: function (ctx, scope, a) {
+            if (typeof a === 'string') {
+                return a.split('').reverse().join('');
+            }
+            return toArray(a).reverse();
+        },
+    },
+    take: {
+        f: function (ctx, scope, a, n) {
+            if (typeof a === 'string') {
+                return a.slice(0, toNumber(n));
+            }
+            return toArray(a).slice(0, toNumber(n));
+        },
+    },
+    head: {
+        f: function (ctx, scope, arr) {
+            return toArray(arr).slice(0, -1);
+        },
+    },
+    tail: {
+        f: function (ctx, scope, arr) {
+            return toArray(arr).slice(1);
+        },
+    },
+    slice: {
+        f: function (ctx, scope, arr, a, b) {
+            if (typeof arr === 'string') {
+                return arr.slice(toNumber(a), toNumber(b));
+            }
+            return toArray(arr).slice(toNumber(a), toNumber(b));
+        },
+    },
+    randEl: {
+        f: function (ctx, scope, arr) {
+            var _a;
+            arr = toArray(arr);
+            var i = STDLIB['randIntInRange'].f(ctx, scope, 0, arr.length - 1);
+            return (_a = arr[i]) !== null && _a !== void 0 ? _a : null;
+        },
+    },
+    keys: {
+        f: function (ctx, scope, obj) {
+            return Object.keys(toObject(obj));
+        },
+    },
+    values: {
+        f: function (ctx, scope, obj) {
+            return Object.values(toObject(obj));
+        },
+    },
+    get: {
+        f: function (ctx, scope, obj, key) {
+            var _a;
+            return (_a = toObject(obj)[toString(key)]) !== null && _a !== void 0 ? _a : null;
+        },
+    },
+    set: {
+        f: function (ctx, scope, obj, key, value) {
+            if (obj && typeof obj === 'object') {
+                obj[toString(key)] = value;
+            }
+            return obj;
         },
     },
 };
@@ -1419,7 +1596,28 @@ var DefaultGrammar = IgnoreWhitespace(Y(function (Expression) {
     var CompoundExpression = Node(All(Expression, Star(All(',', Expression))), function (leafs) {
         return leafs.length > 1 ? { type: 'CompoundExpression', leafs: leafs } : leafs[0];
     });
-    var PrimaryExpression = Node(Any(Literal, Identifier, All('(', CompoundExpression, ')')), function (_a, $, $next) {
+    var ComputedPropertyName = Node(All('[', CompoundExpression, ']'), function (_a) {
+        var expression = _a[0];
+        return ({ type: 'ComputedProperty', expression: expression });
+    });
+    var PropertyName = Any(Identifier, StringLiteral, NumericLiteral, ComputedPropertyName);
+    var PropertyDefinition = Node(Any(All(PropertyName, ':', Expression)), function (_a) {
+        var name = _a[0], value = _a[1];
+        return ({
+            name: name,
+            value: value,
+        });
+    });
+    var PropertyDefinitions = All(PropertyDefinition, Star(All(',', PropertyDefinition)));
+    var PropertyDefinitionList = Optional(All(PropertyDefinitions, Optional(',')));
+    var ObjectLiteral = Node(All('{', PropertyDefinitionList, '}'), function (properties) { return ({ type: 'ObjectLiteral', properties: properties }); });
+    var Element = Any(Expression);
+    var ElementList = All(Element, Star(All(',', Element)));
+    var ArrayLiteral = Node(All('[', ElementList, ']'), function (elements) { return ({
+        type: 'ArrayLiteral',
+        elements: elements,
+    }); });
+    var PrimaryExpression = Node(Any(Literal, Identifier, ArrayLiteral, ObjectLiteral, All('(', CompoundExpression, ')')), function (_a, $, $next) {
         var expr = _a[0];
         return srcMap(expr, $, $next);
     });
@@ -1471,5 +1669,5 @@ function sum(nn) {
     return n;
 }
 
-export { CONSTS, STDLIB, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, parseExpr, sum, toBoolean, toNumber, toScalar, toString };
+export { CONSTS, STDLIB, asyncMap, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, parseExpr, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
 //# sourceMappingURL=index.esm.js.map
