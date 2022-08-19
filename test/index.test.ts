@@ -60,5 +60,29 @@ describe('evalexpr', () => {
     expect(
       (await evaluateExpr('join(keys({a: 1, b: 2, [66*6]: 3}), " ")')).result,
     ).toBe('396 a b');
+    expect(
+      (
+        await evaluateExpr(`
+        do(
+          a := 1,
+          b := {
+            a,
+            c: "haha"
+          },
+          get(b, "a") + 3
+        )
+      `)
+      ).result,
+    ).toBe(4);
+
+    // expect(
+    //   (
+    //     await evaluateExpr(`
+    //     if (1 < 2) {
+    //       do(1)
+    //     }
+    //   `)
+    //   ).result,
+    // ).toBe(1);
   });
 });

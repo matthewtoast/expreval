@@ -228,7 +228,7 @@ function executeAst(ast, ctx, scope) {
                         case 'Identifier': return [3 /*break*/, 2];
                         case 'CallExpression': return [3 /*break*/, 4];
                         case 'BinaryExpression': return [3 /*break*/, 15];
-                        case 'TernaryExpression': return [3 /*break*/, 16];
+                        case 'ConditionalExpression': return [3 /*break*/, 16];
                         case 'UnaryExpression': return [3 /*break*/, 21];
                         case 'TemplateLiteral': return [3 /*break*/, 22];
                         case 'ComputedProperty': return [3 /*break*/, 28];
@@ -312,7 +312,11 @@ function executeAst(ast, ctx, scope) {
                     if (!toBoolean(result)) return [3 /*break*/, 19];
                     return [4 /*yield*/, executeAst(ast.consequent, ctx, scope)];
                 case 18: return [2 /*return*/, _s.sent()];
-                case 19: return [4 /*yield*/, executeAst(ast.alternate, ctx, scope)];
+                case 19:
+                    if (!ast.alternate) {
+                        return [2 /*return*/, null];
+                    }
+                    return [4 /*yield*/, executeAst(ast.alternate, ctx, scope)];
                 case 20: return [2 /*return*/, _s.sent()];
                 case 21:
                     unop = Object.keys(ctx.unops).includes(ast.operator)
@@ -384,7 +388,7 @@ function executeAst(ast, ctx, scope) {
                 case 36:
                     _q = obj;
                     _r = key;
-                    return [4 /*yield*/, executeAst(value_2, ctx, scope)];
+                    return [4 /*yield*/, executeAst(value_2 ? value_2 : name, ctx, scope)];
                 case 37:
                     _q[_r] = _s.sent();
                     _s.label = 38;
@@ -451,11 +455,7 @@ function toObject(v) {
         return {};
     }
     if (v && typeof v === 'object') {
-        var o = {};
-        for (var key in v) {
-            o[key] = toScalar(v[key]);
-        }
-        return o;
+        return v;
     }
     return {};
 }
@@ -477,9 +477,8 @@ function toArray(v) {
     return [];
 }
 function toScalar(n, radix) {
-    if (radix === void 0) { radix = 10; }
     if (typeof n === 'number') {
-        return n.toString(radix);
+        return n;
     }
     if (typeof n === 'string') {
         return n;
@@ -1278,6 +1277,42 @@ var STDLIB = {
             return (_a = arr[i]) !== null && _a !== void 0 ? _a : null;
         },
     },
+    push: {
+        f: function (ctx, scope, arr, value) {
+            if (Array.isArray(arr)) {
+                arr.push(value);
+                return arr.length;
+            }
+            return -1;
+        },
+    },
+    pop: {
+        f: function (ctx, scope, arr) {
+            var _a;
+            if (Array.isArray(arr)) {
+                return (_a = arr.pop()) !== null && _a !== void 0 ? _a : null;
+            }
+            return null;
+        },
+    },
+    shift: {
+        f: function (ctx, scope, arr) {
+            var _a;
+            if (Array.isArray(arr)) {
+                return (_a = arr.shift()) !== null && _a !== void 0 ? _a : null;
+            }
+            return null;
+        },
+    },
+    unshift: {
+        f: function (ctx, scope, arr, value) {
+            if (Array.isArray(arr)) {
+                arr.unshift(value);
+                return arr.length;
+            }
+            return -1;
+        },
+    },
     keys: {
         f: function (ctx, scope, obj) {
             return Object.keys(toObject(obj));
@@ -1601,7 +1636,11 @@ var DefaultGrammar = IgnoreWhitespace(Y(function (Expression) {
         return ({ type: 'ComputedProperty', expression: expression });
     });
     var PropertyName = Any(Identifier, StringLiteral, NumericLiteral, ComputedPropertyName);
-    var PropertyDefinition = Node(Any(All(PropertyName, ':', Expression)), function (_a) {
+    var ShortNotation = Node(Identifier, function (_a, $, $next) {
+        var expr = _a[0];
+        return srcMap(__assign(__assign({}, expr), { shortNotation: true }), $, $next);
+    });
+    var PropertyDefinition = Node(Any(All(PropertyName, ':', Expression), ShortNotation), function (_a) {
         var name = _a[0], value = _a[1];
         return ({
             name: name,
@@ -1640,7 +1679,7 @@ var DefaultGrammar = IgnoreWhitespace(Y(function (Expression) {
     var TernaryExpression = Node(All(LogicalExpressionOrExpression, Optional(All('?', Expression, ':', Expression))), function (_a) {
         var test = _a[0], consequent = _a[1], alternate = _a[2];
         return consequent
-            ? { type: 'TernaryExpression', test: test, consequent: consequent, alternate: alternate }
+            ? { type: 'ConditionalExpression', test: test, consequent: consequent, alternate: alternate }
             : test;
     });
     return Node(Any(TernaryExpression), function (_a, $, $next) {

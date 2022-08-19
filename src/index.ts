@@ -67,7 +67,7 @@ export type TExpression =
   | TIdentifierExpression
   | TBinaryExpression
   | TLiteralExpression
-  | TTernaryExpression
+  | TConditionalExpression
   | TUnaryExpression
   | TTemplateLiteralExpression
   | TArrayLiteralExpression
@@ -96,7 +96,7 @@ export type TObjectLiteralExpression = {
       | TIdentifierExpression
       | TLiteralExpression
       | TComputedPropertyExpression;
-    value: TExpression;
+    value: TExpression | undefined;
   }[];
 };
 
@@ -124,11 +124,11 @@ export type TLiteralExpression = {
   raw: string;
 };
 
-export type TTernaryExpression = {
-  type: 'TernaryExpression';
+export type TConditionalExpression = {
+  type: 'ConditionalExpression';
   test: TExpression;
   consequent: TExpression;
-  alternate: TExpression;
+  alternate: TExpression | undefined;
 };
 
 export type TUnaryExpression = {
@@ -335,10 +335,13 @@ export async function executeAst(
         );
       }
       throw new Error(`Operator not found: '${ast.operator}'`);
-    case 'TernaryExpression':
+    case 'ConditionalExpression':
       const result = await executeAst(ast.test, ctx, scope);
       if (toBoolean(result)) {
         return await executeAst(ast.consequent, ctx, scope);
+      }
+      if (!ast.alternate) {
+        return null;
       }
       return await executeAst(ast.alternate, ctx, scope);
     case 'UnaryExpression':
@@ -390,7 +393,7 @@ export async function executeAst(
         } else if (name.type === 'Literal') {
           key = name.value;
         }
-        obj[key] = await executeAst(value, ctx, scope);
+        obj[key] = await executeAst(value ? value : name, ctx, scope);
       }
       return obj;
     default:
@@ -453,11 +456,7 @@ export function toObject(v: any): TExprObject {
     return {};
   }
   if (v && typeof v === 'object') {
-    const o = {};
-    for (const key in v) {
-      o[key] = toScalar(v[key]);
-    }
-    return o;
+    return v;
   }
   return {};
 }
@@ -484,7 +483,7 @@ export function toArray(v: any): TExprArray {
 
 export function toScalar(n: any, radix: number = 10): TExprScalar {
   if (typeof n === 'number') {
-    return n.toString(radix);
+    return n;
   }
   if (typeof n === 'string') {
     return n;
@@ -538,7 +537,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return args[args.length - 1] ?? null;
     },
   },
-
   present: {
     f(ctx, scope, v) {
       return !!v;
@@ -569,7 +567,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return !v;
     },
   },
-
   setVar: {
     assignment: true,
     async: true,
@@ -624,13 +621,11 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       );
     },
   },
-
   nullCoalesce: {
     f(ctx, scope, a, b) {
       return a ?? b;
     },
   },
-
   unixTimestampNow: {
     f() {
       return Date.now();
@@ -648,7 +643,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       ).getTime();
     },
   },
-
   all: {
     f(ctx, scope, xs) {
       if (!Array.isArray(xs)) {
@@ -685,7 +679,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return !STDLIB['any']!.f(ctx, scope, xs);
     },
   },
-
   or: {
     f(ctx, scope, a, b) {
       return toBoolean(a) || toBoolean(b);
@@ -701,7 +694,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return !toBoolean(a);
     },
   },
-
   gt: {
     f(ctx, scope, a, b) {
       return toNumber(a) > toNumber(b);
@@ -732,7 +724,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return toString(a) !== toString(b);
     },
   },
-
   rand: {
     f(ctx) {
       return ctx.rng();
@@ -755,7 +746,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return Math.floor(ctx.rng() * (max - min + 1)) + min;
     },
   },
-
   number: {
     f(ctx, scope, a) {
       return Number(a);
@@ -834,7 +824,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return Math.pow(toNumber(a), toNumber(b));
     },
   },
-
   abs: {
     f(ctx, scope, a) {
       return Math.abs(toNumber(a));
@@ -975,7 +964,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return Math.trunc(toNumber(a));
     },
   },
-
   fromCharCode: {
     f(ctx, scope, a) {
       return String.fromCharCode(Number(a));
@@ -996,7 +984,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return parseFloat(toString(a));
     },
   },
-
   charAt: {
     f(ctx, scope, a, b) {
       return toString(a).charAt(Number(b));
@@ -1012,7 +999,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return toString(a).codePointAt(Number(b)) ?? 0;
     },
   },
-
   localeCompare: {
     f(ctx, scope, a, b) {
       return toString(a).localeCompare(toString(b));
@@ -1088,13 +1074,11 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return toString(a).trimStart();
     },
   },
-
   clamp: {
     f(ctx, a, min, max) {
       return clamp(toNumber(a), toNumber(min), toNumber(max));
     },
   },
-
   avg: {
     f(ctx, nn) {
       return avg(toArray(nn).map((n) => toNumber(n)));
@@ -1234,7 +1218,40 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return arr[i] ?? null;
     },
   },
-
+  push: {
+    f(ctx, scope, arr, value) {
+      if (Array.isArray(arr)) {
+        arr.push(value);
+        return arr.length;
+      }
+      return -1;
+    },
+  },
+  pop: {
+    f(ctx, scope, arr) {
+      if (Array.isArray(arr)) {
+        return arr.pop() ?? null;
+      }
+      return null;
+    },
+  },
+  shift: {
+    f(ctx, scope, arr) {
+      if (Array.isArray(arr)) {
+        return arr.shift() ?? null;
+      }
+      return null;
+    },
+  },
+  unshift: {
+    f(ctx, scope, arr, value) {
+      if (Array.isArray(arr)) {
+        arr.unshift(value);
+        return arr.length;
+      }
+      return -1;
+    },
+  },
   keys: {
     f(ctx, scope, obj) {
       return Object.keys(toObject(obj));
@@ -1555,7 +1572,6 @@ const DefaultGrammar = IgnoreWhitespace(
       ),
       (parts) => ({ type: 'TemplateLiteral', parts }),
     );
-
     const Literal = Any(
       StringLiteral,
       NumericLiteral,
@@ -1589,8 +1605,11 @@ const DefaultGrammar = IgnoreWhitespace(
       NumericLiteral,
       ComputedPropertyName,
     );
+    const ShortNotation = Node(Identifier, ([expr], $, $next) =>
+      srcMap({ ...expr, shortNotation: true }, $, $next),
+    );
     const PropertyDefinition = Node(
-      Any(All(PropertyName, ':', Expression)),
+      Any(All(PropertyName, ':', Expression), ShortNotation),
       ([name, value]) => ({
         name,
         value,
@@ -1656,10 +1675,11 @@ const DefaultGrammar = IgnoreWhitespace(
         LogicalExpressionOrExpression,
         Optional(All('?', Expression, ':', Expression)),
       ),
-      ([test, consequent, alternate]) =>
-        consequent
-          ? { type: 'TernaryExpression', test, consequent, alternate }
-          : test,
+      ([test, consequent, alternate]) => {
+        return consequent
+          ? { type: 'ConditionalExpression', test, consequent, alternate }
+          : test;
+      },
     );
     return Node(Any(TernaryExpression), ([expr], $, $next) =>
       srcMap(expr, $, $next),

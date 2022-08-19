@@ -42,7 +42,7 @@ export declare type TExprContext = {
 export declare type TScope = {
     [key: string]: TExprValue;
 };
-export declare type TExpression = TCallExpression | TIdentifierExpression | TBinaryExpression | TLiteralExpression | TTernaryExpression | TUnaryExpression | TTemplateLiteralExpression | TArrayLiteralExpression | TObjectLiteralExpression | TComputedPropertyExpression;
+export declare type TExpression = TCallExpression | TIdentifierExpression | TBinaryExpression | TLiteralExpression | TConditionalExpression | TUnaryExpression | TTemplateLiteralExpression | TArrayLiteralExpression | TObjectLiteralExpression | TComputedPropertyExpression;
 export declare type TTemplateLiteralExpression = {
     type: 'TemplateLiteral';
     parts: [['chunks', string] | ['expression', TExpression]];
@@ -59,7 +59,7 @@ export declare type TObjectLiteralExpression = {
     type: 'ObjectLiteral';
     properties: {
         name: TIdentifierExpression | TLiteralExpression | TComputedPropertyExpression;
-        value: TExpression;
+        value: TExpression | undefined;
     }[];
 };
 export declare type TCallExpression = {
@@ -82,11 +82,11 @@ export declare type TLiteralExpression = {
     value: string;
     raw: string;
 };
-export declare type TTernaryExpression = {
-    type: 'TernaryExpression';
+export declare type TConditionalExpression = {
+    type: 'ConditionalExpression';
     test: TExpression;
     consequent: TExpression;
-    alternate: TExpression;
+    alternate: TExpression | undefined;
 };
 export declare type TUnaryExpression = {
     type: 'UnaryExpression';
