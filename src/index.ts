@@ -1,10 +1,21 @@
 import * as seedrandom from 'seedrandom';
+import { z } from 'zod';
 
 export type DictOf<T> = { [key: string]: T };
-export type TExprScalar = number | string | boolean | null;
-export type TExprArray = TExprValue[];
-export type TExprObject = { [key: string]: TExprValue };
-export type TExprValue = TExprScalar | TExprArray | TExprObject;
+
+export const ZExprScalar = z.union([
+  z.number(),
+  z.string(),
+  z.boolean(),
+  z.null(),
+]);
+export type TExprScalar = z.infer<typeof ZExprScalar>;
+export const ZExprArray = z.lazy(() => z.array(ZExprValue));
+export type TExprArray = z.infer<typeof ZExprArray>;
+export const ZExprObject = z.lazy(() => z.record(ZExprValue));
+export type TExprObject = z.infer<typeof ZExprObject>;
+export const ZExprValue = z.union([ZExprScalar, ZExprArray, ZExprObject]);
+export type TExprValue = z.infer<typeof ZExprValue>;
 
 export type TExprFuncAsync = (
   ctx: TExprContext,

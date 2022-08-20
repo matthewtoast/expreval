@@ -5,6 +5,7 @@
  */
 
 import * as seedrandom from 'seedrandom';
+import { z } from 'zod';
 
 /******************************************************************************
 Copyright (c) Microsoft Corporation.
@@ -80,6 +81,15 @@ function __spreadArray(to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 }
 
+var ZExprScalar = z.union([
+    z.number(),
+    z.string(),
+    z.boolean(),
+    z.null(),
+]);
+var ZExprArray = z.lazy(function () { return z.array(ZExprValue); });
+var ZExprObject = z.lazy(function () { return z.record(ZExprValue); });
+var ZExprValue = z.union([ZExprScalar, ZExprArray, ZExprObject]);
 var CONSTS = {
     E: Math.E,
     LN10: Math.LN10,
@@ -1708,5 +1718,5 @@ function sum(nn) {
     return n;
 }
 
-export { CONSTS, STDLIB, asyncMap, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, parseExpr, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
+export { CONSTS, STDLIB, ZExprArray, ZExprObject, ZExprScalar, ZExprValue, asyncMap, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, parseExpr, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
 //# sourceMappingURL=index.esm.js.map

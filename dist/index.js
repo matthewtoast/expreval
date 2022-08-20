@@ -9,6 +9,7 @@
 Object.defineProperty(exports, '__esModule', { value: true });
 
 var seedrandom = require('seedrandom');
+var zod = require('zod');
 
 function _interopNamespace(e) {
     if (e && e.__esModule) return e;
@@ -104,6 +105,15 @@ function __spreadArray(to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 }
 
+var ZExprScalar = zod.z.union([
+    zod.z.number(),
+    zod.z.string(),
+    zod.z.boolean(),
+    zod.z.null(),
+]);
+var ZExprArray = zod.z.lazy(function () { return zod.z.array(ZExprValue); });
+var ZExprObject = zod.z.lazy(function () { return zod.z.record(ZExprValue); });
+var ZExprValue = zod.z.union([ZExprScalar, ZExprArray, ZExprObject]);
 var CONSTS = {
     E: Math.E,
     LN10: Math.LN10,
@@ -1734,6 +1744,10 @@ function sum(nn) {
 
 exports.CONSTS = CONSTS;
 exports.STDLIB = STDLIB;
+exports.ZExprArray = ZExprArray;
+exports.ZExprObject = ZExprObject;
+exports.ZExprScalar = ZExprScalar;
+exports.ZExprValue = ZExprValue;
 exports.asyncMap = asyncMap;
 exports.avg = avg;
 exports.clamp = clamp;

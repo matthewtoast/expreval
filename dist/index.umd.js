@@ -5,10 +5,10 @@
  */
 
 (function (global, factory) {
-    typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('seedrandom')) :
-    typeof define === 'function' && define.amd ? define(['exports', 'seedrandom'], factory) :
-    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.expreval = {}, global.seedrandom));
-})(this, (function (exports, seedrandom) { 'use strict';
+    typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('seedrandom'), require('zod')) :
+    typeof define === 'function' && define.amd ? define(['exports', 'seedrandom', 'zod'], factory) :
+    (global = typeof globalThis !== 'undefined' ? globalThis : global || self, factory(global.expreval = {}, global.seedrandom, global.zod));
+})(this, (function (exports, seedrandom, zod) { 'use strict';
 
     function _interopNamespace(e) {
         if (e && e.__esModule) return e;
@@ -104,6 +104,15 @@
         return to.concat(ar || Array.prototype.slice.call(from));
     }
 
+    var ZExprScalar = zod.z.union([
+        zod.z.number(),
+        zod.z.string(),
+        zod.z.boolean(),
+        zod.z.null(),
+    ]);
+    var ZExprArray = zod.z.lazy(function () { return zod.z.array(ZExprValue); });
+    var ZExprObject = zod.z.lazy(function () { return zod.z.record(ZExprValue); });
+    var ZExprValue = zod.z.union([ZExprScalar, ZExprArray, ZExprObject]);
     var CONSTS = {
         E: Math.E,
         LN10: Math.LN10,
@@ -1734,6 +1743,10 @@
 
     exports.CONSTS = CONSTS;
     exports.STDLIB = STDLIB;
+    exports.ZExprArray = ZExprArray;
+    exports.ZExprObject = ZExprObject;
+    exports.ZExprScalar = ZExprScalar;
+    exports.ZExprValue = ZExprValue;
     exports.asyncMap = asyncMap;
     exports.avg = avg;
     exports.clamp = clamp;

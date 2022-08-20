@@ -1,12 +1,15 @@
+import { z } from 'zod';
 export declare type DictOf<T> = {
     [key: string]: T;
 };
-export declare type TExprScalar = number | string | boolean | null;
-export declare type TExprArray = TExprValue[];
-export declare type TExprObject = {
-    [key: string]: TExprValue;
-};
-export declare type TExprValue = TExprScalar | TExprArray | TExprObject;
+export declare const ZExprScalar: z.ZodUnion<[z.ZodNumber, z.ZodString, z.ZodBoolean, z.ZodNull]>;
+export declare type TExprScalar = z.infer<typeof ZExprScalar>;
+export declare const ZExprArray: any;
+export declare type TExprArray = z.infer<typeof ZExprArray>;
+export declare const ZExprObject: any;
+export declare type TExprObject = z.infer<typeof ZExprObject>;
+export declare const ZExprValue: any;
+export declare type TExprValue = z.infer<typeof ZExprValue>;
 export declare type TExprFuncAsync = (ctx: TExprContext, scope: TScope, ...args: TExprValue[]) => Promise<TExprValue>;
 export declare type TExprFuncSync = (ctx: TExprContext, scope: TScope, ...args: TExprValue[]) => TExprValue;
 export declare type TExprFuncDef = {
