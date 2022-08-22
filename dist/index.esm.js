@@ -33,44 +33,6 @@ var __assign = function() {
     return __assign.apply(this, arguments);
 };
 
-function __awaiter(thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-}
-
-function __generator(thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (_) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
-    }
-}
-
 function __spreadArray(to, from, pack) {
     if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
         if (ar || !(i in from)) {
@@ -160,7 +122,6 @@ var BinaryOperatorPrecedence = [
 ];
 var INVALID_IDENT_REGEX = /^__proto__|prototype|constructor$/;
 function createExprContext(_a) {
-    var _this = this;
     var funcs = _a.funcs, binops = _a.binops, unops = _a.unops, _b = _a.seed, seed = _b === void 0 ? 'expreval' : _b, get = _a.get, set = _a.set, call = _a.call;
     var vars = {};
     return {
@@ -168,56 +129,36 @@ function createExprContext(_a) {
         funcs: __assign(__assign({}, STDLIB), funcs),
         binops: __assign(__assign({}, BINOP_MAP), binops),
         unops: __assign(__assign({}, UNOP_MAP), unops),
-        get: function (scope, name) { return __awaiter(_this, void 0, void 0, function () {
+        get: function (scope, name) {
             var _a, _b;
-            return __generator(this, function (_c) {
-                switch (_c.label) {
-                    case 0:
-                        if (name.match(INVALID_IDENT_REGEX)) {
-                            return [2 /*return*/, 0];
-                        }
-                        if (!get) return [3 /*break*/, 2];
-                        return [4 /*yield*/, get(scope, name)];
-                    case 1: return [2 /*return*/, (_a = (_c.sent())) !== null && _a !== void 0 ? _a : null];
-                    case 2: return [2 /*return*/, (_b = vars[name]) !== null && _b !== void 0 ? _b : null];
-                }
-            });
-        }); },
-        set: function (scope, name, value) { return __awaiter(_this, void 0, void 0, function () {
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0:
-                        if (name.match(INVALID_IDENT_REGEX)) {
-                            return [2 /*return*/];
-                        }
-                        if (!set) return [3 /*break*/, 2];
-                        return [4 /*yield*/, set(scope, name, value)];
-                    case 1: return [2 /*return*/, _a.sent()];
-                    case 2:
-                        vars[name] = value;
-                        return [2 /*return*/];
-                }
-            });
-        }); },
+            if (name.match(INVALID_IDENT_REGEX)) {
+                return 0;
+            }
+            if (get) {
+                return (_a = get(scope, name)) !== null && _a !== void 0 ? _a : null;
+            }
+            return (_b = vars[name]) !== null && _b !== void 0 ? _b : null;
+        },
+        set: function (scope, name, value) {
+            if (name.match(INVALID_IDENT_REGEX)) {
+                return;
+            }
+            if (set) {
+                return set(scope, name, value);
+            }
+            vars[name] = value;
+            return;
+        },
         call: call,
     };
 }
 function evaluateExpr(code, ctx, scope) {
     if (ctx === void 0) { ctx = createExprContext({}); }
     if (scope === void 0) { scope = {}; }
-    return __awaiter(this, void 0, void 0, function () {
-        var _a;
-        return __generator(this, function (_b) {
-            switch (_b.label) {
-                case 0:
-                    _a = {};
-                    return [4 /*yield*/, executeAst(parseExpr(code), ctx, scope)];
-                case 1: return [2 /*return*/, (_a.result = _b.sent(),
-                        _a.ctx = ctx,
-                        _a)];
-            }
-        });
-    });
+    return {
+        result: executeAst(parseExpr(code), ctx, scope),
+        ctx: ctx,
+    };
 }
 function parseExpr(code) {
     var parser = Parser(DefaultGrammar);
@@ -226,192 +167,109 @@ function parseExpr(code) {
 function executeAst(ast, ctx, scope) {
     var _a;
     if (ctx === void 0) { ctx = createExprContext({}); }
-    return __awaiter(this, void 0, void 0, function () {
-        var _b, value, fdef, args, left, right, _c, _d, _e, _f, _g, _h, _j, result_1, _k, binop, result, unop, accum, i, _l, kind, value_1, _m, obj, i, _o, name, value_2, key, _p, _q, _r;
-        var _this = this;
-        return __generator(this, function (_s) {
-            switch (_s.label) {
-                case 0:
-                    _b = ast.type;
-                    switch (_b) {
-                        case 'Literal': return [3 /*break*/, 1];
-                        case 'Identifier': return [3 /*break*/, 2];
-                        case 'CallExpression': return [3 /*break*/, 4];
-                        case 'BinaryExpression': return [3 /*break*/, 15];
-                        case 'ConditionalExpression': return [3 /*break*/, 16];
-                        case 'UnaryExpression': return [3 /*break*/, 21];
-                        case 'TemplateLiteral': return [3 /*break*/, 22];
-                        case 'ComputedProperty': return [3 /*break*/, 28];
-                        case 'ArrayLiteral': return [3 /*break*/, 30];
-                        case 'ObjectLiteral': return [3 /*break*/, 32];
-                    }
-                    return [3 /*break*/, 40];
-                case 1: return [2 /*return*/, ast.value];
-                case 2: return [4 /*yield*/, ctx.get(scope, ast.name)];
-                case 3:
-                    value = _s.sent();
-                    return [2 /*return*/, value !== undefined ? value : ast.name];
-                case 4:
-                    fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
-                        ? ctx.funcs[ast.callee.name]
-                        : null;
-                    args = [];
-                    if (!(fdef && fdef.assignment && ast.arguments.length > 1)) return [3 /*break*/, 6];
-                    left = (_a = exprToIdentifier(ast.arguments[0])) !== null && _a !== void 0 ? _a : '';
-                    right = ast.arguments.slice(1);
-                    _d = (_c = args.push).apply;
-                    _e = [args];
-                    _f = [[left]];
-                    return [4 /*yield*/, asyncMap(right, function (expr) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
-                            switch (_a.label) {
-                                case 0: return [4 /*yield*/, executeAst(expr, ctx, scope)];
-                                case 1: return [2 /*return*/, _a.sent()];
-                            }
-                        }); }); })];
-                case 5:
-                    _d.apply(_c, _e.concat([__spreadArray.apply(void 0, _f.concat([(_s.sent()), false]))]));
-                    return [3 /*break*/, 8];
-                case 6:
-                    _h = (_g = args.push).apply;
-                    _j = [args];
-                    return [4 /*yield*/, asyncMap(ast.arguments, function (expr) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
-                            switch (_a.label) {
-                                case 0: return [4 /*yield*/, executeAst(expr, ctx, scope)];
-                                case 1: return [2 /*return*/, _a.sent()];
-                            }
-                        }); }); })];
-                case 7:
-                    _h.apply(_g, _j.concat([(_s.sent())]));
-                    _s.label = 8;
-                case 8:
-                    if (!fdef) return [3 /*break*/, 12];
-                    if (!fdef.async) return [3 /*break*/, 10];
-                    return [4 /*yield*/, fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false))];
-                case 9:
-                    _k = _s.sent();
-                    return [3 /*break*/, 11];
-                case 10:
-                    _k = fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false));
-                    _s.label = 11;
-                case 11:
-                    result_1 = _k;
-                    return [2 /*return*/, result_1];
-                case 12:
-                    if (!ctx.call) return [3 /*break*/, 14];
-                    return [4 /*yield*/, ctx.call(ctx, scope, ast.callee.name, args)];
-                case 13: return [2 /*return*/, _s.sent()];
-                case 14: throw new Error("Function not found: '".concat(ast.callee.name, "'"));
-                case 15:
-                    binop = Object.keys(ctx.binops).includes(ast.operator)
-                        ? ctx.binops[ast.operator]
-                        : null;
-                    if (binop) {
-                        return [2 /*return*/, executeAst({
-                                type: 'CallExpression',
-                                callee: {
-                                    name: binop.alias,
-                                    type: 'Identifier',
-                                },
-                                arguments: [ast.left, ast.right],
-                            }, ctx, scope)];
-                    }
-                    throw new Error("Operator not found: '".concat(ast.operator, "'"));
-                case 16: return [4 /*yield*/, executeAst(ast.test, ctx, scope)];
-                case 17:
-                    result = _s.sent();
-                    if (!toBoolean(result)) return [3 /*break*/, 19];
-                    return [4 /*yield*/, executeAst(ast.consequent, ctx, scope)];
-                case 18: return [2 /*return*/, _s.sent()];
-                case 19:
-                    if (!ast.alternate) {
-                        return [2 /*return*/, null];
-                    }
-                    return [4 /*yield*/, executeAst(ast.alternate, ctx, scope)];
-                case 20: return [2 /*return*/, _s.sent()];
-                case 21:
-                    unop = Object.keys(ctx.unops).includes(ast.operator)
-                        ? ctx.unops[ast.operator]
-                        : null;
-                    if (unop) {
-                        return [2 /*return*/, executeAst({
-                                type: 'CallExpression',
-                                callee: {
-                                    name: unop.alias,
-                                    type: 'Identifier',
-                                },
-                                arguments: [ast.argument],
-                            }, ctx, scope)];
-                    }
-                    throw new Error("Operator not found: '".concat(ast.operator, "'"));
-                case 22:
-                    accum = '';
-                    i = 0;
-                    _s.label = 23;
-                case 23:
-                    if (!(i < ast.parts.length)) return [3 /*break*/, 27];
-                    _l = ast.parts[i], kind = _l[0], value_1 = _l[1];
-                    if (!(kind === 'chunks')) return [3 /*break*/, 24];
-                    accum += value_1;
-                    return [3 /*break*/, 26];
-                case 24:
-                    if (!(kind === 'expression')) return [3 /*break*/, 26];
-                    _m = accum;
-                    return [4 /*yield*/, executeAst(value_1, ctx, scope)];
-                case 25:
-                    accum = _m + ((_s.sent()) + '');
-                    _s.label = 26;
-                case 26:
-                    i++;
-                    return [3 /*break*/, 23];
-                case 27: return [2 /*return*/, accum];
-                case 28: return [4 /*yield*/, executeAst(ast.expression, ctx, scope)];
-                case 29: return [2 /*return*/, _s.sent()];
-                case 30: return [4 /*yield*/, asyncMap(ast.elements, function (element) { return __awaiter(_this, void 0, void 0, function () { return __generator(this, function (_a) {
-                        switch (_a.label) {
-                            case 0: return [4 /*yield*/, executeAst(element, ctx, scope)];
-                            case 1: return [2 /*return*/, _a.sent()];
-                        }
-                    }); }); })];
-                case 31: return [2 /*return*/, _s.sent()];
-                case 32:
-                    obj = {};
-                    i = 0;
-                    _s.label = 33;
-                case 33:
-                    if (!(i < ast.properties.length)) return [3 /*break*/, 39];
-                    _o = ast.properties[i], name = _o.name, value_2 = _o.value;
-                    key = '';
-                    if (!(name.type === 'ComputedProperty')) return [3 /*break*/, 35];
-                    _p = toString;
-                    return [4 /*yield*/, executeAst(name.expression, ctx, scope)];
-                case 34:
-                    key = _p.apply(void 0, [_s.sent()]);
-                    return [3 /*break*/, 36];
-                case 35:
-                    if (name.type === 'Identifier') {
-                        key = name.name; // Don't evaluate this if 'bare'
-                    }
-                    else if (name.type === 'Literal') {
-                        key = name.value;
-                    }
-                    _s.label = 36;
-                case 36:
-                    _q = obj;
-                    _r = key;
-                    return [4 /*yield*/, executeAst(value_2 ? value_2 : name, ctx, scope)];
-                case 37:
-                    _q[_r] = _s.sent();
-                    _s.label = 38;
-                case 38:
-                    i++;
-                    return [3 /*break*/, 33];
-                case 39: return [2 /*return*/, obj];
-                case 40:
-                    console.info(ast);
-                    throw new Error("Syntax error");
+    switch (ast.type) {
+        case 'Literal':
+            return ast.value;
+        case 'Identifier':
+            var value = ctx.get(scope, ast.name);
+            return value !== undefined ? value : ast.name;
+        case 'CallExpression':
+            var fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
+                ? ctx.funcs[ast.callee.name]
+                : null;
+            var args = [];
+            if (fdef && fdef.assignment && ast.arguments.length > 1) {
+                var left = (_a = exprToIdentifier(ast.arguments[0])) !== null && _a !== void 0 ? _a : '';
+                var right = ast.arguments.slice(1);
+                args.push.apply(args, __spreadArray([left], right.map(function (expr) { return executeAst(expr, ctx, scope); }), false));
             }
-        });
-    });
+            else {
+                args.push.apply(args, ast.arguments.map(function (expr) { return executeAst(expr, ctx, scope); }));
+            }
+            if (fdef) {
+                var result_1 = fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false));
+                return result_1;
+            }
+            else if (ctx.call) {
+                return ctx.call(ctx, scope, ast.callee.name, args);
+            }
+            throw new Error("Function not found: '".concat(ast.callee.name, "'"));
+        case 'BinaryExpression':
+            var binop = Object.keys(ctx.binops).includes(ast.operator)
+                ? ctx.binops[ast.operator]
+                : null;
+            if (binop) {
+                return executeAst({
+                    type: 'CallExpression',
+                    callee: {
+                        name: binop.alias,
+                        type: 'Identifier',
+                    },
+                    arguments: [ast.left, ast.right],
+                }, ctx, scope);
+            }
+            throw new Error("Operator not found: '".concat(ast.operator, "'"));
+        case 'ConditionalExpression':
+            var result = executeAst(ast.test, ctx, scope);
+            if (toBoolean(result)) {
+                return executeAst(ast.consequent, ctx, scope);
+            }
+            if (!ast.alternate) {
+                return null;
+            }
+            return executeAst(ast.alternate, ctx, scope);
+        case 'UnaryExpression':
+            var unop = Object.keys(ctx.unops).includes(ast.operator)
+                ? ctx.unops[ast.operator]
+                : null;
+            if (unop) {
+                return executeAst({
+                    type: 'CallExpression',
+                    callee: {
+                        name: unop.alias,
+                        type: 'Identifier',
+                    },
+                    arguments: [ast.argument],
+                }, ctx, scope);
+            }
+            throw new Error("Operator not found: '".concat(ast.operator, "'"));
+        case 'TemplateLiteral':
+            var accum = '';
+            for (var i = 0; i < ast.parts.length; i++) {
+                var _b = ast.parts[i], kind = _b[0], value_1 = _b[1];
+                if (kind === 'chunks') {
+                    accum += value_1;
+                }
+                else if (kind === 'expression') {
+                    accum += executeAst(value_1, ctx, scope) + '';
+                }
+            }
+            return accum;
+        case 'ComputedProperty':
+            return executeAst(ast.expression, ctx, scope);
+        case 'ArrayLiteral':
+            return ast.elements.map(function (element) { return executeAst(element, ctx, scope); });
+        case 'ObjectLiteral':
+            var obj = {};
+            for (var i = 0; i < ast.properties.length; i++) {
+                var _c = ast.properties[i], name = _c.name, value_2 = _c.value;
+                var key = '';
+                if (name.type === 'ComputedProperty') {
+                    key = toString(executeAst(name.expression, ctx, scope));
+                }
+                else if (name.type === 'Identifier') {
+                    key = name.name; // Don't evaluate this if 'bare'
+                }
+                else if (name.type === 'Literal') {
+                    key = name.value;
+                }
+                obj[key] = executeAst(value_2 ? value_2 : name, ctx, scope);
+            }
+            return obj;
+        default:
+            console.info(ast);
+            throw new Error("Syntax error");
+    }
 }
 function exprToIdentifier(v) {
     if (v.type === 'Identifier') {
@@ -504,55 +362,14 @@ function toScalar(n, radix) {
     }
     return n + '';
 }
-function asyncMap(array, callback) {
-    return __awaiter(this, void 0, void 0, function () {
-        var out, index, m;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    out = [];
-                    index = 0;
-                    _a.label = 1;
-                case 1:
-                    if (!(index < array.length)) return [3 /*break*/, 4];
-                    return [4 /*yield*/, callback(array[index], index, array)];
-                case 2:
-                    m = _a.sent();
-                    out.push(m);
-                    _a.label = 3;
-                case 3:
-                    index++;
-                    return [3 /*break*/, 1];
-                case 4: return [2 /*return*/, out];
-            }
-        });
-    });
-}
 function setVar(ctx, scope, name, value) {
-    return __awaiter(this, void 0, void 0, function () {
-        var key;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
-                case 0:
-                    key = toString(name);
-                    return [4 /*yield*/, ctx.set(scope, key, value)];
-                case 1:
-                    _a.sent();
-                    return [2 /*return*/, value];
-            }
-        });
-    });
+    var key = toString(name);
+    ctx.set(scope, key, value);
+    return value;
 }
 function getVar(ctx, scope, name) {
     var _a;
-    return __awaiter(this, void 0, void 0, function () {
-        return __generator(this, function (_b) {
-            switch (_b.label) {
-                case 0: return [4 /*yield*/, ctx.get(scope, name + '')];
-                case 1: return [2 /*return*/, (_a = (_b.sent())) !== null && _a !== void 0 ? _a : null];
-            }
-        });
-    });
+    return (_a = ctx.get(scope, name + '')) !== null && _a !== void 0 ? _a : null;
 }
 var STDLIB = {
     do: {
@@ -597,103 +414,36 @@ var STDLIB = {
     },
     setVar: {
         assignment: true,
-        async: true,
         f: function (ctx, scope, left, right) {
-            return __awaiter(this, void 0, void 0, function () {
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0: return [4 /*yield*/, setVar(ctx, scope, left, right)];
-                        case 1: return [2 /*return*/, _a.sent()];
-                    }
-                });
-            });
+            return setVar(ctx, scope, left, right);
         },
     },
     setAdd: {
         assignment: true,
-        async: true,
         f: function (ctx, scope, left, right) {
-            return __awaiter(this, void 0, void 0, function () {
-                var lval;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0: return [4 /*yield*/, getVar(ctx, scope, left)];
-                        case 1:
-                            lval = _a.sent();
-                            if (!(typeof lval === 'string')) return [3 /*break*/, 3];
-                            return [4 /*yield*/, setVar(ctx, scope, left, lval + right + '')];
-                        case 2: return [2 /*return*/, _a.sent()];
-                        case 3: return [4 /*yield*/, setVar(ctx, scope, left, toNumber(lval) + toNumber(right))];
-                        case 4: return [2 /*return*/, _a.sent()];
-                    }
-                });
-            });
+            var lval = getVar(ctx, scope, left);
+            if (typeof lval === 'string') {
+                return setVar(ctx, scope, left, lval + right + '');
+            }
+            return setVar(ctx, scope, left, toNumber(lval) + toNumber(right));
         },
     },
     setSub: {
         assignment: true,
-        async: true,
         f: function (ctx, scope, left, right) {
-            return __awaiter(this, void 0, void 0, function () {
-                var _a, _b, _c;
-                return __generator(this, function (_d) {
-                    switch (_d.label) {
-                        case 0:
-                            _a = setVar;
-                            _b = [ctx,
-                                scope,
-                                left];
-                            _c = toNumber;
-                            return [4 /*yield*/, getVar(ctx, scope, left)];
-                        case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) - toNumber(right)]))];
-                        case 2: return [2 /*return*/, _d.sent()];
-                    }
-                });
-            });
+            return setVar(ctx, scope, left, toNumber(getVar(ctx, scope, left)) - toNumber(right));
         },
     },
     setMul: {
         assignment: true,
-        async: true,
         f: function (ctx, scope, left, right) {
-            return __awaiter(this, void 0, void 0, function () {
-                var _a, _b, _c;
-                return __generator(this, function (_d) {
-                    switch (_d.label) {
-                        case 0:
-                            _a = setVar;
-                            _b = [ctx,
-                                scope,
-                                left];
-                            _c = toNumber;
-                            return [4 /*yield*/, getVar(ctx, scope, left)];
-                        case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) * toNumber(right)]))];
-                        case 2: return [2 /*return*/, _d.sent()];
-                    }
-                });
-            });
+            return setVar(ctx, scope, left, toNumber(getVar(ctx, scope, left)) * toNumber(right));
         },
     },
     setDiv: {
         assignment: true,
-        async: true,
         f: function (ctx, scope, left, right) {
-            return __awaiter(this, void 0, void 0, function () {
-                var _a, _b, _c;
-                return __generator(this, function (_d) {
-                    switch (_d.label) {
-                        case 0:
-                            _a = setVar;
-                            _b = [ctx,
-                                scope,
-                                left];
-                            _c = toNumber;
-                            return [4 /*yield*/, getVar(ctx, scope, left)];
-                        case 1: return [4 /*yield*/, _a.apply(void 0, _b.concat([_c.apply(void 0, [_d.sent()]) / toNumber(right)]))];
-                        case 2: return [2 /*return*/, _d.sent()];
-                    }
-                });
-            });
+            return setVar(ctx, scope, left, toNumber(getVar(ctx, scope, left)) / toNumber(right));
         },
     },
     nullCoalesce: {
@@ -1718,5 +1468,5 @@ function sum(nn) {
     return n;
 }
 
-export { CONSTS, STDLIB, ZExprArray, ZExprObject, ZExprScalar, ZExprValue, asyncMap, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, parseExpr, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
+export { CONSTS, STDLIB, ZExprArray, ZExprObject, ZExprScalar, ZExprValue, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, parseExpr, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
 //# sourceMappingURL=index.esm.js.map

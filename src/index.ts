@@ -17,11 +17,6 @@ export type TExprObject = z.infer<typeof ZExprObject>;
 export const ZExprValue = z.union([ZExprScalar, ZExprArray, ZExprObject]);
 export type TExprValue = z.infer<typeof ZExprValue>;
 
-export type TExprFuncAsync = (
-  ctx: TExprContext,
-  scope: TScope,
-  ...args: TExprValue[]
-) => Promise<TExprValue>;
 export type TExprFuncSync = (
   ctx: TExprContext,
   scope: TScope,
@@ -29,18 +24,8 @@ export type TExprFuncSync = (
 ) => TExprValue;
 export type TExprFuncDef = {
   assignment?: true;
-  lazy?: true;
-  macro?: true;
-} & (
-  | {
-      async: true;
-      f: TExprFuncAsync;
-    }
-  | {
-      async?: false;
-      f: TExprFuncSync;
-    }
-);
+  f: TExprFuncSync;
+};
 
 export type TBinopDef = {
   alias: string;
@@ -59,15 +44,15 @@ export type TExprContext = {
   funcs: DictOf<TExprFuncDef>;
   binops: DictOf<TBinopDef>;
   unops: DictOf<TUnopDef>;
-  get: (scope: TScope, key: string) => Promise<TExprValue>;
-  set: (scope: TScope, key: string, value: TExprValue) => Promise<void>;
+  get: (scope: TScope, key: string) => TExprValue;
+  set: (scope: TScope, key: string, value: TExprValue) => void;
   call?:
     | ((
         ctx: TExprContext,
         scope: TScope,
         method: string,
         args: TExprValue[],
-      ) => Promise<TExprValue>)
+      ) => TExprValue)
     | undefined;
 };
 
@@ -243,21 +228,21 @@ export function createExprContext({
     funcs: { ...STDLIB, ...funcs },
     binops: { ...BINOP_MAP, ...binops },
     unops: { ...UNOP_MAP, ...unops },
-    get: async (scope, name) => {
+    get: (scope, name) => {
       if (name.match(INVALID_IDENT_REGEX)) {
         return 0;
       }
       if (get) {
-        return (await get(scope, name)) ?? null;
+        return get(scope, name) ?? null;
       }
       return vars[name] ?? null;
     },
-    set: async (scope, name, value) => {
+    set: (scope, name, value) => {
       if (name.match(INVALID_IDENT_REGEX)) {
         return;
       }
       if (set) {
-        return await set(scope, name, value);
+        return set(scope, name, value);
       }
       vars[name] = value;
       return;
@@ -266,13 +251,13 @@ export function createExprContext({
   };
 }
 
-export async function evaluateExpr(
+export function evaluateExpr(
   code: string,
   ctx: TExprContext = createExprContext({}),
   scope: TScope = {},
-): Promise<TExprResult> {
+): TExprResult {
   return {
-    result: await executeAst(parseExpr(code), ctx, scope),
+    result: executeAst(parseExpr(code), ctx, scope),
     ctx,
   };
 }
@@ -284,16 +269,16 @@ export function parseExpr(code: string): TExpression {
   return parser(code.replace(/\/\/.*\n/g, ''));
 }
 
-export async function executeAst(
+export function executeAst(
   ast: TExpression,
   ctx: TExprContext = createExprContext({}),
   scope: TScope,
-): Promise<TExprValue> {
+): TExprValue {
   switch (ast.type) {
     case 'Literal':
       return ast.value;
     case 'Identifier':
-      const value = await ctx.get(scope, ast.name);
+      const value = ctx.get(scope, ast.name);
       return value !== undefined ? value : ast.name;
     case 'CallExpression':
       const fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
@@ -303,28 +288,15 @@ export async function executeAst(
       if (fdef && fdef.assignment && ast.arguments.length > 1) {
         const left = exprToIdentifier(ast.arguments[0]!) ?? '';
         const right = ast.arguments.slice(1);
-        args.push(
-          left,
-          ...(await asyncMap(
-            right,
-            async (expr) => await executeAst(expr, ctx, scope),
-          )),
-        );
+        args.push(left, ...right.map((expr) => executeAst(expr, ctx, scope)));
       } else {
-        args.push(
-          ...(await asyncMap(
-            ast.arguments,
-            async (expr) => await executeAst(expr, ctx, scope),
-          )),
-        );
+        args.push(...ast.arguments.map((expr) => executeAst(expr, ctx, scope)));
       }
       if (fdef) {
-        const result = fdef.async
-          ? await fdef.f(ctx, scope, ...args)
-          : fdef.f(ctx, scope, ...args);
+        const result = fdef.f(ctx, scope, ...args);
         return result;
       } else if (ctx.call) {
-        return await ctx.call(ctx, scope, ast.callee.name, args);
+        return ctx.call(ctx, scope, ast.callee.name, args);
       }
       throw new Error(`Function not found: '${ast.callee.name}'`);
     case 'BinaryExpression':
@@ -347,14 +319,14 @@ export async function executeAst(
       }
       throw new Error(`Operator not found: '${ast.operator}'`);
     case 'ConditionalExpression':
-      const result = await executeAst(ast.test, ctx, scope);
+      const result = executeAst(ast.test, ctx, scope);
       if (toBoolean(result)) {
-        return await executeAst(ast.consequent, ctx, scope);
+        return executeAst(ast.consequent, ctx, scope);
       }
       if (!ast.alternate) {
         return null;
       }
-      return await executeAst(ast.alternate, ctx, scope);
+      return executeAst(ast.alternate, ctx, scope);
     case 'UnaryExpression':
       const unop = Object.keys(ctx.unops).includes(ast.operator)
         ? ctx.unops[ast.operator]
@@ -381,30 +353,27 @@ export async function executeAst(
         if (kind === 'chunks') {
           accum += value;
         } else if (kind === 'expression') {
-          accum += (await executeAst(value, ctx, scope)) + '';
+          accum += executeAst(value, ctx, scope) + '';
         }
       }
       return accum;
     case 'ComputedProperty':
-      return await executeAst(ast.expression, ctx, scope);
+      return executeAst(ast.expression, ctx, scope);
     case 'ArrayLiteral':
-      return await asyncMap(
-        ast.elements,
-        async (element) => await executeAst(element, ctx, scope),
-      );
+      return ast.elements.map((element) => executeAst(element, ctx, scope));
     case 'ObjectLiteral':
       const obj = {};
       for (let i = 0; i < ast.properties.length; i++) {
         const { name, value } = ast.properties[i]!;
         let key: string = '';
         if (name.type === 'ComputedProperty') {
-          key = toString(await executeAst(name.expression, ctx, scope));
+          key = toString(executeAst(name.expression, ctx, scope));
         } else if (name.type === 'Identifier') {
           key = name.name; // Don't evaluate this if 'bare'
         } else if (name.type === 'Literal') {
           key = name.value;
         }
-        obj[key] = await executeAst(value ? value : name, ctx, scope);
+        obj[key] = executeAst(value ? value : name, ctx, scope);
       }
       return obj;
     default:
@@ -511,35 +480,19 @@ export function toScalar(n: any, radix: number = 10): TExprScalar {
   return n + '';
 }
 
-export async function asyncMap<V, T>(
-  array: V[],
-  callback: (el: V, idx: number, arr: V[]) => Promise<T>,
-) {
-  const out: T[] = [];
-  for (let index = 0; index < array.length; index++) {
-    const m = await callback(array[index]!, index, array);
-    out.push(m);
-  }
-  return out;
-}
-
-async function setVar<T extends TExprValue>(
+function setVar<T extends TExprValue>(
   ctx: TExprContext,
   scope: TScope,
   name: any,
   value: T,
-): Promise<T> {
+): T {
   const key = toString(name);
-  await ctx.set(scope, key, value);
+  ctx.set(scope, key, value);
   return value;
 }
 
-async function getVar(
-  ctx: TExprContext,
-  scope: TScope,
-  name: any,
-): Promise<TExprValue> {
-  return (await ctx.get(scope, name + '')) ?? null;
+function getVar(ctx: TExprContext, scope: TScope, name: any): TExprValue {
+  return ctx.get(scope, name + '') ?? null;
 }
 
 export const STDLIB: DictOf<TExprFuncDef> = {
@@ -580,55 +533,50 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
   setVar: {
     assignment: true,
-    async: true,
-    async f(ctx, scope, left, right) {
-      return await setVar(ctx, scope, left, right);
+    f(ctx, scope, left, right) {
+      return setVar(ctx, scope, left, right);
     },
   },
   setAdd: {
     assignment: true,
-    async: true,
-    async f(ctx, scope, left, right) {
-      const lval = await getVar(ctx, scope, left);
+    f(ctx, scope, left, right) {
+      const lval = getVar(ctx, scope, left);
       if (typeof lval === 'string') {
-        return await setVar(ctx, scope, left, lval + right + '');
+        return setVar(ctx, scope, left, lval + right + '');
       }
-      return await setVar(ctx, scope, left, toNumber(lval) + toNumber(right));
+      return setVar(ctx, scope, left, toNumber(lval) + toNumber(right));
     },
   },
   setSub: {
     assignment: true,
-    async: true,
-    async f(ctx, scope, left, right) {
-      return await setVar(
+    f(ctx, scope, left, right) {
+      return setVar(
         ctx,
         scope,
         left,
-        toNumber(await getVar(ctx, scope, left)) - toNumber(right),
+        toNumber(getVar(ctx, scope, left)) - toNumber(right),
       );
     },
   },
   setMul: {
     assignment: true,
-    async: true,
-    async f(ctx, scope, left, right) {
-      return await setVar(
+    f(ctx, scope, left, right) {
+      return setVar(
         ctx,
         scope,
         left,
-        toNumber(await getVar(ctx, scope, left)) * toNumber(right),
+        toNumber(getVar(ctx, scope, left)) * toNumber(right),
       );
     },
   },
   setDiv: {
     assignment: true,
-    async: true,
-    async f(ctx, scope, left, right) {
-      return await setVar(
+    f(ctx, scope, left, right) {
+      return setVar(
         ctx,
         scope,
         left,
-        toNumber(await getVar(ctx, scope, left)) / toNumber(right),
+        toNumber(getVar(ctx, scope, left)) / toNumber(right),
       );
     },
   },

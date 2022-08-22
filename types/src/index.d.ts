@@ -10,19 +10,11 @@ export declare const ZExprObject: any;
 export declare type TExprObject = z.infer<typeof ZExprObject>;
 export declare const ZExprValue: any;
 export declare type TExprValue = z.infer<typeof ZExprValue>;
-export declare type TExprFuncAsync = (ctx: TExprContext, scope: TScope, ...args: TExprValue[]) => Promise<TExprValue>;
 export declare type TExprFuncSync = (ctx: TExprContext, scope: TScope, ...args: TExprValue[]) => TExprValue;
 export declare type TExprFuncDef = {
     assignment?: true;
-    lazy?: true;
-    macro?: true;
-} & ({
-    async: true;
-    f: TExprFuncAsync;
-} | {
-    async?: false;
     f: TExprFuncSync;
-});
+};
 export declare type TBinopDef = {
     alias: string;
 };
@@ -38,9 +30,9 @@ export declare type TExprContext = {
     funcs: DictOf<TExprFuncDef>;
     binops: DictOf<TBinopDef>;
     unops: DictOf<TUnopDef>;
-    get: (scope: TScope, key: string) => Promise<TExprValue>;
-    set: (scope: TScope, key: string, value: TExprValue) => Promise<void>;
-    call?: ((ctx: TExprContext, scope: TScope, method: string, args: TExprValue[]) => Promise<TExprValue>) | undefined;
+    get: (scope: TScope, key: string) => TExprValue;
+    set: (scope: TScope, key: string, value: TExprValue) => void;
+    call?: ((ctx: TExprContext, scope: TScope, method: string, args: TExprValue[]) => TExprValue) | undefined;
 };
 export declare type TScope = {
     [key: string]: TExprValue;
@@ -100,10 +92,10 @@ export declare const CONSTS: DictOf<TExprValue>;
 export declare function createExprContext({ funcs, binops, unops, seed, get, set, call, }: Partial<TExprContext> & {
     seed?: string;
 }): TExprContext;
-export declare function evaluateExpr(code: string, ctx?: TExprContext, scope?: TScope): Promise<TExprResult>;
+export declare function evaluateExpr(code: string, ctx?: TExprContext, scope?: TScope): TExprResult;
 export default evaluateExpr;
 export declare function parseExpr(code: string): TExpression;
-export declare function executeAst(ast: TExpression, ctx: TExprContext | undefined, scope: TScope): Promise<TExprValue>;
+export declare function executeAst(ast: TExpression, ctx: TExprContext | undefined, scope: TScope): TExprValue;
 export declare function exprToIdentifier(v: TExpression): string | null;
 export declare function toNumber(v: any, fallback?: number): number;
 export declare function toBoolean(v: TExprValue): boolean;
@@ -111,7 +103,6 @@ export declare function toString(v: any, radix?: number): string;
 export declare function toObject(v: any): TExprObject;
 export declare function toArray(v: any): TExprArray;
 export declare function toScalar(n: any, radix?: number): TExprScalar;
-export declare function asyncMap<V, T>(array: V[], callback: (el: V, idx: number, arr: V[]) => Promise<T>): Promise<T[]>;
 export declare const STDLIB: DictOf<TExprFuncDef>;
 export declare function clamp(n: number, min?: number, max?: number): number;
 export declare function avg(nn: number[]): number;
