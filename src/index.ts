@@ -9,23 +9,31 @@ export const ZExprScalar = z.union([
   z.boolean(),
   z.null(),
 ]);
-export type TExprScalar = z.infer<typeof ZExprScalar>;
-export const ZExprArray = z.lazy(() => z.array(ZExprValue));
-export type TExprArray = z.infer<typeof ZExprArray>;
-export const ZExprObject = z.lazy(() => z.record(ZExprValue));
-export type TExprObject = z.infer<typeof ZExprObject>;
-export const ZExprValue = z.union([ZExprScalar, ZExprArray, ZExprObject]);
-export type TExprValue = z.infer<typeof ZExprValue>;
+export type TExprScalar = number | string | boolean | null;
+export type TExprArray = TExprValue[];
+export type TExprObject = { [key: string]: TExprValue };
+export type TExprValue = TExprScalar | TExprObject | TExprArray;
 
 export type TExprFuncSync = (
   ctx: TExprContext,
   scope: TScope,
   ...args: TExprValue[]
 ) => TExprValue;
-export type TExprFuncDef = {
-  assignment?: true;
-  f: TExprFuncSync;
-};
+export type TExprFuncLazy = (
+  ctx: TExprContext,
+  scope: TScope,
+  ...args: TExpression[]
+) => TExprValue;
+export type TExprFuncDef =
+  | {
+      assignment?: true;
+      lazy?: undefined;
+      f: TExprFuncSync;
+    }
+  | {
+      lazy: true;
+      f: TExprFuncLazy;
+    };
 
 export type TBinopDef = {
   alias: string;
@@ -52,6 +60,14 @@ export type TExprContext = {
         scope: TScope,
         method: string,
         args: TExprValue[],
+      ) => TExprValue)
+    | undefined;
+  lazy?:
+    | ((
+        ctx: TExprContext,
+        scope: TScope,
+        method: string,
+        args: TExpression[],
       ) => TExprValue)
     | undefined;
 };
@@ -284,6 +300,9 @@ export function executeAst(
       const fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
         ? ctx.funcs[ast.callee.name]
         : null;
+      if (fdef && fdef.lazy) {
+        return fdef.f(ctx, scope, ...ast.arguments);
+      }
       const args: TExprValue[] = [];
       if (fdef && fdef.assignment && ast.arguments.length > 1) {
         const left = exprToIdentifier(ast.arguments[0]!) ?? '';
@@ -295,7 +314,8 @@ export function executeAst(
       if (fdef) {
         const result = fdef.f(ctx, scope, ...args);
         return result;
-      } else if (ctx.call) {
+      }
+      if (ctx.call) {
         return ctx.call(ctx, scope, ast.callee.name, args);
       }
       throw new Error(`Function not found: '${ast.callee.name}'`);
@@ -501,6 +521,12 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return args[args.length - 1] ?? null;
     },
   },
+  defp: {
+    lazy: true,
+    f(ctx, scope, ...args) {
+      return 0;
+    },
+  },
   present: {
     f(ctx, scope, v) {
       return !!v;
@@ -630,12 +656,12 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
   some: {
     f(ctx, scope, xs) {
-      return !!STDLIB['any']!.f(ctx, scope, xs);
+      return !!STDLIB['any']!.f(ctx, scope, xs as any);
     },
   },
   none: {
     f(ctx, scope, xs) {
-      return !STDLIB['any']!.f(ctx, scope, xs);
+      return !STDLIB['any']!.f(ctx, scope, xs as any);
     },
   },
   or: {
@@ -1171,8 +1197,8 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       const i = STDLIB['randIntInRange']!.f(
         ctx,
         scope,
-        0,
-        arr.length - 1,
+        0 as any,
+        (arr.length - 1) as any,
       ) as number;
       return arr[i] ?? null;
     },
