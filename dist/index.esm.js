@@ -49,9 +49,6 @@ var ZExprScalar = z.union([
     z.boolean(),
     z.null(),
 ]);
-var ZExprArray = z.lazy(function () { return z.array(ZExprValue); });
-var ZExprObject = z.lazy(function () { return z.record(ZExprValue); });
-var ZExprValue = z.union([ZExprScalar, ZExprArray, ZExprObject]);
 var CONSTS = {
     E: Math.E,
     LN10: Math.LN10,
@@ -177,6 +174,9 @@ function executeAst(ast, ctx, scope) {
             var fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
                 ? ctx.funcs[ast.callee.name]
                 : null;
+            if (fdef && fdef.lazy) {
+                return fdef.f.apply(fdef, __spreadArray([ctx, scope], ast.arguments, false));
+            }
             var args = [];
             if (fdef && fdef.assignment && ast.arguments.length > 1) {
                 var left = (_a = exprToIdentifier(ast.arguments[0])) !== null && _a !== void 0 ? _a : '';
@@ -190,7 +190,7 @@ function executeAst(ast, ctx, scope) {
                 var result_1 = fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false));
                 return result_1;
             }
-            else if (ctx.call) {
+            if (ctx.call) {
                 return ctx.call(ctx, scope, ast.callee.name, args);
             }
             throw new Error("Function not found: '".concat(ast.callee.name, "'"));
@@ -279,6 +279,9 @@ function exprToIdentifier(v) {
 }
 function toNumber(v, fallback) {
     if (fallback === void 0) { fallback = 0; }
+    if (typeof v === 'boolean') {
+        return v ? 1 : 0;
+    }
     if (typeof v === 'number') {
         return isNaN(v) ? fallback : v;
     }
@@ -380,6 +383,12 @@ var STDLIB = {
                 args[_i - 2] = arguments[_i];
             }
             return (_a = args[args.length - 1]) !== null && _a !== void 0 ? _a : null;
+        },
+    },
+    defp: {
+        lazy: true,
+        f: function (ctx, scope) {
+            return 0;
         },
     },
     present: {
@@ -567,6 +576,17 @@ var STDLIB = {
     number: {
         f: function (ctx, scope, a) {
             return Number(a);
+        },
+    },
+    isNumeric: {
+        f: function (ctx, scope, a) {
+            if (typeof a === 'number') {
+                return true;
+            }
+            if (typeof a === 'string') {
+                return isNumeric(a);
+            }
+            return false;
         },
     },
     bitwiseOr: {
@@ -899,12 +919,12 @@ var STDLIB = {
         },
     },
     avg: {
-        f: function (ctx, nn) {
+        f: function (ctx, scope, nn) {
             return avg(toArray(nn).map(function (n) { return toNumber(n); }));
         },
     },
     sum: {
-        f: function (ctx, nn) {
+        f: function (ctx, scope, nn) {
             return sum(toArray(nn).map(function (n) { return toNumber(n); }));
         },
     },
@@ -1033,7 +1053,7 @@ var STDLIB = {
         f: function (ctx, scope, arr) {
             var _a;
             arr = toArray(arr);
-            var i = STDLIB['randIntInRange'].f(ctx, scope, 0, arr.length - 1);
+            var i = STDLIB['randIntInRange'].f(ctx, scope, 0, (arr.length - 1));
             return (_a = arr[i]) !== null && _a !== void 0 ? _a : null;
         },
     },
@@ -1467,6 +1487,9 @@ function sum(nn) {
         n += nn[i];
     return n;
 }
+function isNumeric(a) {
+    return !isNaN(parseFloat(a)) && isFinite(a);
+}
 
-export { CONSTS, STDLIB, ZExprArray, ZExprObject, ZExprScalar, ZExprValue, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, parseExpr, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
+export { CONSTS, STDLIB, ZExprScalar, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, isNumeric, parseExpr, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
 //# sourceMappingURL=index.esm.js.map

@@ -3,17 +3,21 @@ export declare type DictOf<T> = {
     [key: string]: T;
 };
 export declare const ZExprScalar: z.ZodUnion<[z.ZodNumber, z.ZodString, z.ZodBoolean, z.ZodNull]>;
-export declare type TExprScalar = z.infer<typeof ZExprScalar>;
-export declare const ZExprArray: any;
-export declare type TExprArray = z.infer<typeof ZExprArray>;
-export declare const ZExprObject: any;
-export declare type TExprObject = z.infer<typeof ZExprObject>;
-export declare const ZExprValue: any;
-export declare type TExprValue = z.infer<typeof ZExprValue>;
+export declare type TExprScalar = number | string | boolean | null;
+export declare type TExprArray = TExprValue[];
+export declare type TExprObject = {
+    [key: string]: TExprValue;
+};
+export declare type TExprValue = TExprScalar | TExprObject | TExprArray;
 export declare type TExprFuncSync = (ctx: TExprContext, scope: TScope, ...args: TExprValue[]) => TExprValue;
+export declare type TExprFuncLazy = (ctx: TExprContext, scope: TScope, ...args: TExpression[]) => TExprValue;
 export declare type TExprFuncDef = {
     assignment?: true;
+    lazy?: undefined;
     f: TExprFuncSync;
+} | {
+    lazy: true;
+    f: TExprFuncLazy;
 };
 export declare type TBinopDef = {
     alias: string;
@@ -33,6 +37,7 @@ export declare type TExprContext = {
     get: (scope: TScope, key: string) => TExprValue;
     set: (scope: TScope, key: string, value: TExprValue) => void;
     call?: ((ctx: TExprContext, scope: TScope, method: string, args: TExprValue[]) => TExprValue) | undefined;
+    lazy?: ((ctx: TExprContext, scope: TScope, method: string, args: TExpression[]) => TExprValue) | undefined;
 };
 export declare type TScope = {
     [key: string]: TExprValue;
@@ -107,4 +112,5 @@ export declare const STDLIB: DictOf<TExprFuncDef>;
 export declare function clamp(n: number, min?: number, max?: number): number;
 export declare function avg(nn: number[]): number;
 export declare function sum(nn: number[]): number;
+export declare function isNumeric(a: any): boolean;
 //# sourceMappingURL=index.d.ts.map

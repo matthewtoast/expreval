@@ -72,9 +72,6 @@
         zod.z.boolean(),
         zod.z.null(),
     ]);
-    var ZExprArray = zod.z.lazy(function () { return zod.z.array(ZExprValue); });
-    var ZExprObject = zod.z.lazy(function () { return zod.z.record(ZExprValue); });
-    var ZExprValue = zod.z.union([ZExprScalar, ZExprArray, ZExprObject]);
     var CONSTS = {
         E: Math.E,
         LN10: Math.LN10,
@@ -200,6 +197,9 @@
                 var fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
                     ? ctx.funcs[ast.callee.name]
                     : null;
+                if (fdef && fdef.lazy) {
+                    return fdef.f.apply(fdef, __spreadArray([ctx, scope], ast.arguments, false));
+                }
                 var args = [];
                 if (fdef && fdef.assignment && ast.arguments.length > 1) {
                     var left = (_a = exprToIdentifier(ast.arguments[0])) !== null && _a !== void 0 ? _a : '';
@@ -213,7 +213,7 @@
                     var result_1 = fdef.f.apply(fdef, __spreadArray([ctx, scope], args, false));
                     return result_1;
                 }
-                else if (ctx.call) {
+                if (ctx.call) {
                     return ctx.call(ctx, scope, ast.callee.name, args);
                 }
                 throw new Error("Function not found: '".concat(ast.callee.name, "'"));
@@ -302,6 +302,9 @@
     }
     function toNumber(v, fallback) {
         if (fallback === void 0) { fallback = 0; }
+        if (typeof v === 'boolean') {
+            return v ? 1 : 0;
+        }
         if (typeof v === 'number') {
             return isNaN(v) ? fallback : v;
         }
@@ -403,6 +406,12 @@
                     args[_i - 2] = arguments[_i];
                 }
                 return (_a = args[args.length - 1]) !== null && _a !== void 0 ? _a : null;
+            },
+        },
+        defp: {
+            lazy: true,
+            f: function (ctx, scope) {
+                return 0;
             },
         },
         present: {
@@ -590,6 +599,17 @@
         number: {
             f: function (ctx, scope, a) {
                 return Number(a);
+            },
+        },
+        isNumeric: {
+            f: function (ctx, scope, a) {
+                if (typeof a === 'number') {
+                    return true;
+                }
+                if (typeof a === 'string') {
+                    return isNumeric(a);
+                }
+                return false;
             },
         },
         bitwiseOr: {
@@ -922,12 +942,12 @@
             },
         },
         avg: {
-            f: function (ctx, nn) {
+            f: function (ctx, scope, nn) {
                 return avg(toArray(nn).map(function (n) { return toNumber(n); }));
             },
         },
         sum: {
-            f: function (ctx, nn) {
+            f: function (ctx, scope, nn) {
                 return sum(toArray(nn).map(function (n) { return toNumber(n); }));
             },
         },
@@ -1056,7 +1076,7 @@
             f: function (ctx, scope, arr) {
                 var _a;
                 arr = toArray(arr);
-                var i = STDLIB['randIntInRange'].f(ctx, scope, 0, arr.length - 1);
+                var i = STDLIB['randIntInRange'].f(ctx, scope, 0, (arr.length - 1));
                 return (_a = arr[i]) !== null && _a !== void 0 ? _a : null;
             },
         },
@@ -1490,13 +1510,13 @@
             n += nn[i];
         return n;
     }
+    function isNumeric(a) {
+        return !isNaN(parseFloat(a)) && isFinite(a);
+    }
 
     exports.CONSTS = CONSTS;
     exports.STDLIB = STDLIB;
-    exports.ZExprArray = ZExprArray;
-    exports.ZExprObject = ZExprObject;
     exports.ZExprScalar = ZExprScalar;
-    exports.ZExprValue = ZExprValue;
     exports.avg = avg;
     exports.clamp = clamp;
     exports.createExprContext = createExprContext;
@@ -1504,6 +1524,7 @@
     exports.evaluateExpr = evaluateExpr;
     exports.executeAst = executeAst;
     exports.exprToIdentifier = exprToIdentifier;
+    exports.isNumeric = isNumeric;
     exports.parseExpr = parseExpr;
     exports.sum = sum;
     exports.toArray = toArray;

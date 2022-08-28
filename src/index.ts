@@ -410,6 +410,9 @@ export function exprToIdentifier(v: TExpression): string | null {
 }
 
 export function toNumber(v: any, fallback: number = 0): number {
+  if (typeof v === 'boolean') {
+    return v ? 1 : 0;
+  }
   if (typeof v === 'number') {
     return isNaN(v) ? fallback : v;
   }
@@ -734,6 +737,17 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   number: {
     f(ctx, scope, a) {
       return Number(a);
+    },
+  },
+  isNumeric: {
+    f(ctx, scope, a) {
+      if (typeof a === 'number') {
+        return true;
+      }
+      if (typeof a === 'string') {
+        return isNumeric(a);
+      }
+      return false;
     },
   },
   bitwiseOr: {
@@ -1065,12 +1079,12 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   avg: {
-    f(ctx, nn) {
+    f(ctx, scope, nn) {
       return avg(toArray(nn).map((n) => toNumber(n)));
     },
   },
   sum: {
-    f(ctx, nn) {
+    f(ctx, scope, nn) {
       return sum(toArray(nn).map((n) => toNumber(n)));
     },
   },
@@ -1685,4 +1699,8 @@ export function sum(nn: number[]): number {
   let n = 0;
   for (let i = 0; i < nn.length; i++) n += nn[i]!;
   return n;
+}
+
+export function isNumeric(a: any): boolean {
+  return !isNaN(parseFloat(a)) && isFinite(a);
 }
