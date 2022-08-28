@@ -1627,10 +1627,13 @@ const DefaultGrammar = IgnoreWhitespace(
     );
     const Element = Any(Expression);
     const ElementList = All(Element, Star(All(',', Element)));
-    const ArrayLiteral = Node(All('[', ElementList, ']'), (elements) => ({
-      type: 'ArrayLiteral',
-      elements,
-    }));
+    const ArrayLiteral = Node(
+      All('[', Optional(ElementList), ']'),
+      (elements) => ({
+        type: 'ArrayLiteral',
+        elements,
+      }),
+    );
     const PrimaryExpression = Node(
       Any(
         Literal,

@@ -1455,7 +1455,7 @@
         var ObjectLiteral = Node(All('{', PropertyDefinitionList, '}'), function (properties) { return ({ type: 'ObjectLiteral', properties: properties }); });
         var Element = Any(Expression);
         var ElementList = All(Element, Star(All(',', Element)));
-        var ArrayLiteral = Node(All('[', ElementList, ']'), function (elements) { return ({
+        var ArrayLiteral = Node(All('[', Optional(ElementList), ']'), function (elements) { return ({
             type: 'ArrayLiteral',
             elements: elements,
         }); });
