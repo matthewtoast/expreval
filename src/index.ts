@@ -332,9 +332,9 @@ export function genCode(
         ast.properties
           .map((prop) => {
             if (!prop.value) {
-              return `${genCode(prop.name)}`;
+              return `${genCode(prop.name, res)}`;
             }
-            return `${genCode(prop.name)}: ${genCode(prop.value, res)}`;
+            return `${genCode(prop.name, res)}: ${genCode(prop.value, res)}`;
           })
           .join(', ') +
         '}'

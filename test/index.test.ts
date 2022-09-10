@@ -83,6 +83,6 @@ describe('evalexpr', () => {
           return v;
         },
       ),
-    ).toBe('do(AAA := 1, b := {a, c: "haha"}, get(b, "a") + 3)');
+    ).toBe('do(AAA := 1, b := {AAA, c: "haha"}, get(b, "a") + 3)');
   });
 });

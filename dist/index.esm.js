@@ -199,9 +199,9 @@ function genCode(ast, res) {
                 ast.properties
                     .map(function (prop) {
                     if (!prop.value) {
-                        return "".concat(genCode(prop.name));
+                        return "".concat(genCode(prop.name, res));
                     }
-                    return "".concat(genCode(prop.name), ": ").concat(genCode(prop.value, res));
+                    return "".concat(genCode(prop.name, res), ": ").concat(genCode(prop.value, res));
                 })
                     .join(', ') +
                 '}');
