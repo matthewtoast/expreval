@@ -86,7 +86,7 @@ export declare type TConditionalExpression = {
     type: 'ConditionalExpression';
     test: TExpression;
     consequent: TExpression;
-    alternate: TExpression | undefined;
+    alternate: TExpression;
 };
 export declare type TUnaryExpression = {
     type: 'UnaryExpression';
@@ -100,11 +100,13 @@ export declare function createExprContext({ funcs, binops, unops, seed, get, set
 export declare function evaluateExpr(code: string, ctx?: TExprContext, scope?: TScope): TExprResult;
 export default evaluateExpr;
 export declare function parseExpr(code: string): TExpression;
+export declare function genCode(ast: TExpression, res?: (ident: string) => string): string;
+export declare function rewriteCode(code: string, res: (ident: string) => string): string;
 export declare function executeAst(ast: TExpression, ctx: TExprContext | undefined, scope: TScope): TExprValue;
 export declare function exprToIdentifier(v: TExpression): string | null;
 export declare function toNumber(v: any, fallback?: number): number;
 export declare function toBoolean(v: TExprValue): boolean;
-export declare function toString(v: any, radix?: number): string;
+export declare function toString(v: any): string;
 export declare function toObject(v: any): TExprObject;
 export declare function toArray(v: any): TExprArray;
 export declare function toScalar(n: any, radix?: number): TExprScalar;

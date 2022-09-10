@@ -140,7 +140,7 @@ export type TConditionalExpression = {
   type: 'ConditionalExpression';
   test: TExpression;
   consequent: TExpression;
-  alternate: TExpression | undefined;
+  alternate: TExpression;
 };
 
 export type TUnaryExpression = {
@@ -285,6 +285,67 @@ export function parseExpr(code: string): TExpression {
   return parser(code.replace(/\/\/.*\n/g, ''));
 }
 
+export function genCode(
+  ast: TExpression,
+  res: (ident: string) => string = (s) => s,
+): string {
+  switch (ast.type) {
+    case 'Literal':
+      return res(ast.raw);
+    case 'Identifier':
+      return res(ast.name);
+    case 'CallExpression':
+      return `${res(ast.callee.name)}(${ast.arguments
+        .map((el) => genCode(el, res))
+        .join(', ')})`;
+    case 'BinaryExpression':
+      return `${genCode(ast.left, res)} ${ast.operator} ${genCode(
+        ast.right,
+        res,
+      )}`;
+    case 'ConditionalExpression':
+      return `${genCode(ast.test, res)} ? ${genCode(
+        ast.consequent,
+        res,
+      )} : ${genCode(ast.alternate, res)}`;
+    case 'UnaryExpression':
+      return `${ast.operator}${genCode(ast.argument, res)}`;
+    case 'TemplateLiteral':
+      return (
+        '`' +
+        ast.parts.map(([kind, value]) => {
+          if (kind === 'chunks') {
+            return res(value);
+          } else {
+            return '${' + genCode(value, res) + '}';
+          }
+        }) +
+        '`'
+      );
+    case 'ComputedProperty':
+      return '[' + genCode(ast.expression, res) + ']';
+    case 'ArrayLiteral':
+      return '[' + ast.elements.map((el) => genCode(el, res)).join(', ') + ']';
+    case 'ObjectLiteral':
+      return (
+        '{' +
+        ast.properties
+          .map((prop) => {
+            if (!prop.value) {
+              return `${genCode(prop.name)}`;
+            }
+            return `${genCode(prop.name)}: ${genCode(prop.value, res)}`;
+          })
+          .join(', ') +
+        '}'
+      );
+  }
+}
+
+export function rewriteCode(code: string, res: (ident: string) => string) {
+  return genCode(parseExpr(code), res);
+}
+
 export function executeAst(
   ast: TExpression,
   ctx: TExprContext = createExprContext({}),
@@ -342,9 +403,6 @@ export function executeAst(
       const result = executeAst(ast.test, ctx, scope);
       if (toBoolean(result)) {
         return executeAst(ast.consequent, ctx, scope);
-      }
-      if (!ast.alternate) {
-        return null;
       }
       return executeAst(ast.alternate, ctx, scope);
     case 'UnaryExpression':
@@ -441,9 +499,9 @@ export function toBoolean(v: TExprValue): boolean {
   return true;
 }
 
-export function toString(v: any, radix: number = 10): string {
+export function toString(v: any): string {
   if (typeof v === 'number') {
-    return v.toString(radix);
+    return v.toString(10);
   }
   if (v === true || v === 'true') {
     return 'true';

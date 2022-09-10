@@ -1,4 +1,4 @@
-import { createExprContext, evaluateExpr } from '../src';
+import { createExprContext, evaluateExpr, rewriteCode } from '../src';
 
 describe('evalexpr', () => {
   it('evalexpr', () => {
@@ -65,14 +65,24 @@ describe('evalexpr', () => {
       `).result,
     ).toBe(4);
 
-    // expect(
-    //   (
-    //     evaluateExpr(`
-    //     if (1 < 2) {
-    //       do(1)
-    //     }
-    //   `)
-    //   ).result,
-    // ).toBe(1);
+    expect(
+      rewriteCode(
+        `
+      do(
+        a := 1,
+        b := {
+          a,
+          c: "haha"
+        },
+        get(b, "a") + 3
+      )`,
+        (v) => {
+          if (v === 'a') {
+            return 'AAA';
+          }
+          return v;
+        },
+      ),
+    ).toBe('do(AAA := 1, b := {a, c: "haha"}, get(b, "a") + 3)');
   });
 });

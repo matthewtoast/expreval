@@ -161,6 +161,55 @@ function parseExpr(code) {
     var parser = Parser(DefaultGrammar);
     return parser(code.replace(/\/\/.*\n/g, ''));
 }
+function genCode(ast, res) {
+    if (res === void 0) { res = function (s) { return s; }; }
+    switch (ast.type) {
+        case 'Literal':
+            return res(ast.raw);
+        case 'Identifier':
+            return res(ast.name);
+        case 'CallExpression':
+            return "".concat(res(ast.callee.name), "(").concat(ast.arguments
+                .map(function (el) { return genCode(el, res); })
+                .join(', '), ")");
+        case 'BinaryExpression':
+            return "".concat(genCode(ast.left, res), " ").concat(ast.operator, " ").concat(genCode(ast.right, res));
+        case 'ConditionalExpression':
+            return "".concat(genCode(ast.test, res), " ? ").concat(genCode(ast.consequent, res), " : ").concat(genCode(ast.alternate, res));
+        case 'UnaryExpression':
+            return "".concat(ast.operator).concat(genCode(ast.argument, res));
+        case 'TemplateLiteral':
+            return ('`' +
+                ast.parts.map(function (_a) {
+                    var kind = _a[0], value = _a[1];
+                    if (kind === 'chunks') {
+                        return res(value);
+                    }
+                    else {
+                        return '${' + genCode(value, res) + '}';
+                    }
+                }) +
+                '`');
+        case 'ComputedProperty':
+            return '[' + genCode(ast.expression, res) + ']';
+        case 'ArrayLiteral':
+            return '[' + ast.elements.map(function (el) { return genCode(el, res); }).join(', ') + ']';
+        case 'ObjectLiteral':
+            return ('{' +
+                ast.properties
+                    .map(function (prop) {
+                    if (!prop.value) {
+                        return "".concat(genCode(prop.name));
+                    }
+                    return "".concat(genCode(prop.name), ": ").concat(genCode(prop.value, res));
+                })
+                    .join(', ') +
+                '}');
+    }
+}
+function rewriteCode(code, res) {
+    return genCode(parseExpr(code), res);
+}
 function executeAst(ast, ctx, scope) {
     var _a;
     if (ctx === void 0) { ctx = createExprContext({}); }
@@ -213,9 +262,6 @@ function executeAst(ast, ctx, scope) {
             var result = executeAst(ast.test, ctx, scope);
             if (toBoolean(result)) {
                 return executeAst(ast.consequent, ctx, scope);
-            }
-            if (!ast.alternate) {
-                return null;
             }
             return executeAst(ast.alternate, ctx, scope);
         case 'UnaryExpression':
@@ -308,10 +354,9 @@ function toBoolean(v) {
     }
     return true;
 }
-function toString(v, radix) {
-    if (radix === void 0) { radix = 10; }
+function toString(v) {
     if (typeof v === 'number') {
-        return v.toString(radix);
+        return v.toString(10);
     }
     if (v === true || v === 'true') {
         return 'true';
@@ -1491,5 +1536,5 @@ function isNumeric(a) {
     return !isNaN(parseFloat(a)) && isFinite(a);
 }
 
-export { CONSTS, STDLIB, ZExprScalar, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, isNumeric, parseExpr, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
+export { CONSTS, STDLIB, ZExprScalar, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, genCode, isNumeric, parseExpr, rewriteCode, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
 //# sourceMappingURL=index.esm.js.map
