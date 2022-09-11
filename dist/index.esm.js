@@ -161,6 +161,52 @@ function parseExpr(code) {
     var parser = Parser(DefaultGrammar);
     return parser(code.replace(/\/\/.*\n/g, ''));
 }
+function remapAst(ast, res) {
+    switch (ast.type) {
+        case 'Literal':
+            return res(ast);
+        case 'Identifier':
+            return res(ast);
+        case 'CallExpression':
+            ast.arguments = ast.arguments.map(function (el) { return remapAst(el, res); });
+            return remapAst(ast, res);
+        case 'BinaryExpression':
+            ast.left = remapAst(ast.left, res);
+            ast.right = remapAst(ast.right, res);
+            return remapAst(ast, res);
+        case 'ConditionalExpression':
+            ast.test = remapAst(ast.test, res);
+            ast.consequent = remapAst(ast.consequent, res);
+            ast.alternate = remapAst(ast.alternate, res);
+            return remapAst(ast, res);
+        case 'UnaryExpression':
+            ast.argument = remapAst(ast.argument, res);
+            return remapAst(ast, res);
+        case 'TemplateLiteral':
+            ast.parts = ast.parts.map(function (_a) {
+                var type = _a[0], value = _a[1];
+                return type === 'expression'
+                    ? [type, remapAst(value, res)]
+                    : [type, value];
+            });
+            return remapAst(ast, res);
+        case 'ComputedProperty':
+            ast.expression = remapAst(ast.expression, res);
+            return remapAst(ast, res);
+        case 'ArrayLiteral':
+            ast.elements = ast.elements.map(function (el) { return remapAst(el, res); });
+            return remapAst(ast, res);
+        case 'ObjectLiteral':
+            ast.properties = ast.properties.map(function (_a) {
+                var name = _a.name, value = _a.value;
+                return {
+                    name: remapAst(name, res),
+                    value: value ? remapAst(value, res) : value,
+                };
+            });
+            return remapAst(ast, res);
+    }
+}
 function genCode(ast, res) {
     if (res === void 0) { res = function (s) { return s; }; }
     switch (ast.type) {
@@ -1538,5 +1584,5 @@ function isNumeric(a) {
     return !isNaN(parseFloat(a)) && isFinite(a);
 }
 
-export { CONSTS, STDLIB, ZExprScalar, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, genCode, isNumeric, parseExpr, rewriteCode, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
+export { CONSTS, STDLIB, ZExprScalar, avg, clamp, createExprContext, evaluateExpr as default, evaluateExpr, executeAst, exprToIdentifier, genCode, isNumeric, parseExpr, remapAst, rewriteCode, sum, toArray, toBoolean, toNumber, toObject, toScalar, toString };
 //# sourceMappingURL=index.esm.js.map

@@ -58,7 +58,7 @@ export declare type TArrayLiteralExpression = {
 export declare type TObjectLiteralExpression = {
     type: 'ObjectLiteral';
     properties: {
-        name: TIdentifierExpression | TLiteralExpression | TComputedPropertyExpression;
+        name: TExpression;
         value: TExpression | undefined;
     }[];
 };
@@ -100,6 +100,7 @@ export declare function createExprContext({ funcs, binops, unops, seed, get, set
 export declare function evaluateExpr(code: string, ctx?: TExprContext, scope?: TScope): TExprResult;
 export default evaluateExpr;
 export declare function parseExpr(code: string): TExpression;
+export declare function remapAst(ast: TExpression, res: (ast: TExpression) => TExpression): TExpression;
 export declare function genCode(ast: TExpression, res?: (ident: string) => string): string;
 export declare function rewriteCode(code: string, res: (ident: string) => string): string;
 export declare function executeAst(ast: TExpression, ctx: TExprContext | undefined, scope: TScope): TExprValue;

@@ -185,6 +185,52 @@ function parseExpr(code) {
     var parser = Parser(DefaultGrammar);
     return parser(code.replace(/\/\/.*\n/g, ''));
 }
+function remapAst(ast, res) {
+    switch (ast.type) {
+        case 'Literal':
+            return res(ast);
+        case 'Identifier':
+            return res(ast);
+        case 'CallExpression':
+            ast.arguments = ast.arguments.map(function (el) { return remapAst(el, res); });
+            return remapAst(ast, res);
+        case 'BinaryExpression':
+            ast.left = remapAst(ast.left, res);
+            ast.right = remapAst(ast.right, res);
+            return remapAst(ast, res);
+        case 'ConditionalExpression':
+            ast.test = remapAst(ast.test, res);
+            ast.consequent = remapAst(ast.consequent, res);
+            ast.alternate = remapAst(ast.alternate, res);
+            return remapAst(ast, res);
+        case 'UnaryExpression':
+            ast.argument = remapAst(ast.argument, res);
+            return remapAst(ast, res);
+        case 'TemplateLiteral':
+            ast.parts = ast.parts.map(function (_a) {
+                var type = _a[0], value = _a[1];
+                return type === 'expression'
+                    ? [type, remapAst(value, res)]
+                    : [type, value];
+            });
+            return remapAst(ast, res);
+        case 'ComputedProperty':
+            ast.expression = remapAst(ast.expression, res);
+            return remapAst(ast, res);
+        case 'ArrayLiteral':
+            ast.elements = ast.elements.map(function (el) { return remapAst(el, res); });
+            return remapAst(ast, res);
+        case 'ObjectLiteral':
+            ast.properties = ast.properties.map(function (_a) {
+                var name = _a.name, value = _a.value;
+                return {
+                    name: remapAst(name, res),
+                    value: value ? remapAst(value, res) : value,
+                };
+            });
+            return remapAst(ast, res);
+    }
+}
 function genCode(ast, res) {
     if (res === void 0) { res = function (s) { return s; }; }
     switch (ast.type) {
@@ -1575,6 +1621,7 @@ exports.exprToIdentifier = exprToIdentifier;
 exports.genCode = genCode;
 exports.isNumeric = isNumeric;
 exports.parseExpr = parseExpr;
+exports.remapAst = remapAst;
 exports.rewriteCode = rewriteCode;
 exports.sum = sum;
 exports.toArray = toArray;
