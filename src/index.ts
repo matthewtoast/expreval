@@ -86,9 +86,13 @@ export type TExpression =
   | TObjectLiteralExpression
   | TComputedPropertyExpression;
 
+export type TTemplateLiteralPart =
+  | ['chunks', string]
+  | ['expression', TExpression];
+
 export type TTemplateLiteralExpression = {
   type: 'TemplateLiteral';
-  parts: [['chunks', string] | ['expression', TExpression]];
+  parts: TTemplateLiteralPart[];
 };
 
 export type TComputedPropertyExpression = {
@@ -311,7 +315,7 @@ export function remapAst(
         return type === 'expression'
           ? [type, remapAst(value, res)]
           : [type, value];
-      }) as any;
+      });
       return remapAst(ast, res);
     case 'ComputedProperty':
       ast.expression = remapAst(ast.expression, res);

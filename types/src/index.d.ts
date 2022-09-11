@@ -43,9 +43,10 @@ export declare type TScope = {
     [key: string]: TExprValue;
 };
 export declare type TExpression = TCallExpression | TIdentifierExpression | TBinaryExpression | TLiteralExpression | TConditionalExpression | TUnaryExpression | TTemplateLiteralExpression | TArrayLiteralExpression | TObjectLiteralExpression | TComputedPropertyExpression;
+export declare type TTemplateLiteralPart = ['chunks', string] | ['expression', TExpression];
 export declare type TTemplateLiteralExpression = {
     type: 'TemplateLiteral';
-    parts: [['chunks', string] | ['expression', TExpression]];
+    parts: TTemplateLiteralPart[];
 };
 export declare type TComputedPropertyExpression = {
     type: 'ComputedProperty';
