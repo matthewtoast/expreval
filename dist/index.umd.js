@@ -203,15 +203,17 @@
                 return "".concat(ast.operator).concat(genCode(ast.argument, res));
             case 'TemplateLiteral':
                 return ('`' +
-                    ast.parts.map(function (_a) {
+                    ast.parts
+                        .map(function (_a) {
                         var kind = _a[0], value = _a[1];
                         if (kind === 'chunks') {
-                            return res(value);
+                            return value; // Hmm...
                         }
                         else {
                             return '${' + genCode(value, res) + '}';
                         }
-                    }) +
+                    })
+                        .join('') +
                     '`');
             case 'ComputedProperty':
                 return '[' + genCode(ast.expression, res) + ']';

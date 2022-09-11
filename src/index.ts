@@ -313,13 +313,15 @@ export function genCode(
     case 'TemplateLiteral':
       return (
         '`' +
-        ast.parts.map(([kind, value]) => {
-          if (kind === 'chunks') {
-            return res(value);
-          } else {
-            return '${' + genCode(value, res) + '}';
-          }
-        }) +
+        ast.parts
+          .map(([kind, value]) => {
+            if (kind === 'chunks') {
+              return value; // Hmm...
+            } else {
+              return '${' + genCode(value, res) + '}';
+            }
+          })
+          .join('') +
         '`'
       );
     case 'ComputedProperty':
