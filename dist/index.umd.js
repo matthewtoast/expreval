@@ -192,19 +192,19 @@
                 return res(ast);
             case 'CallExpression':
                 ast.arguments = ast.arguments.map(function (el) { return remapAst(el, res); });
-                return remapAst(ast, res);
+                return res(ast);
             case 'BinaryExpression':
                 ast.left = remapAst(ast.left, res);
                 ast.right = remapAst(ast.right, res);
-                return remapAst(ast, res);
+                return res(ast);
             case 'ConditionalExpression':
                 ast.test = remapAst(ast.test, res);
                 ast.consequent = remapAst(ast.consequent, res);
                 ast.alternate = remapAst(ast.alternate, res);
-                return remapAst(ast, res);
+                return res(ast);
             case 'UnaryExpression':
                 ast.argument = remapAst(ast.argument, res);
-                return remapAst(ast, res);
+                return res(ast);
             case 'TemplateLiteral':
                 ast.parts = ast.parts.map(function (_a) {
                     var type = _a[0], value = _a[1];
@@ -212,13 +212,13 @@
                         ? [type, remapAst(value, res)]
                         : [type, value];
                 });
-                return remapAst(ast, res);
+                return res(ast);
             case 'ComputedProperty':
                 ast.expression = remapAst(ast.expression, res);
-                return remapAst(ast, res);
+                return res(ast);
             case 'ArrayLiteral':
                 ast.elements = ast.elements.map(function (el) { return remapAst(el, res); });
-                return remapAst(ast, res);
+                return res(ast);
             case 'ObjectLiteral':
                 ast.properties = ast.properties.map(function (_a) {
                     var name = _a.name, value = _a.value;
@@ -227,7 +227,7 @@
                         value: value ? remapAst(value, res) : value,
                     };
                 });
-                return remapAst(ast, res);
+                return res(ast);
         }
     }
     function genCode(ast, res) {
@@ -1209,23 +1209,23 @@
                 return -1;
             },
         },
-        keys: {
+        keysOf: {
             f: function (ctx, scope, obj) {
                 return Object.keys(toObject(obj));
             },
         },
-        values: {
+        valuesOf: {
             f: function (ctx, scope, obj) {
                 return Object.values(toObject(obj));
             },
         },
-        get: {
+        getProperty: {
             f: function (ctx, scope, obj, key) {
                 var _a;
                 return (_a = toObject(obj)[toString(key)]) !== null && _a !== void 0 ? _a : null;
             },
         },
-        set: {
+        setProperty: {
             f: function (ctx, scope, obj, key, value) {
                 if (obj && typeof obj === 'object') {
                     obj[toString(key)] = value;

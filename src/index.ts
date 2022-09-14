@@ -297,32 +297,32 @@ export function remapAst(
       return res(ast);
     case 'CallExpression':
       ast.arguments = ast.arguments.map((el) => remapAst(el, res));
-      return remapAst(ast, res);
+      return res(ast);
     case 'BinaryExpression':
       ast.left = remapAst(ast.left, res);
       ast.right = remapAst(ast.right, res);
-      return remapAst(ast, res);
+      return res(ast);
     case 'ConditionalExpression':
       ast.test = remapAst(ast.test, res);
       ast.consequent = remapAst(ast.consequent, res);
       ast.alternate = remapAst(ast.alternate, res);
-      return remapAst(ast, res);
+      return res(ast);
     case 'UnaryExpression':
       ast.argument = remapAst(ast.argument, res);
-      return remapAst(ast, res);
+      return res(ast);
     case 'TemplateLiteral':
       ast.parts = ast.parts.map(([type, value]) => {
         return type === 'expression'
           ? [type, remapAst(value, res)]
           : [type, value];
       });
-      return remapAst(ast, res);
+      return res(ast);
     case 'ComputedProperty':
       ast.expression = remapAst(ast.expression, res);
-      return remapAst(ast, res);
+      return res(ast);
     case 'ArrayLiteral':
       ast.elements = ast.elements.map((el) => remapAst(el, res));
-      return remapAst(ast, res);
+      return res(ast);
     case 'ObjectLiteral':
       ast.properties = ast.properties.map(({ name, value }) => {
         return {
@@ -330,7 +330,7 @@ export function remapAst(
           value: value ? remapAst(value, res) : value,
         };
       });
-      return remapAst(ast, res);
+      return res(ast);
   }
 }
 
@@ -1360,22 +1360,22 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return -1;
     },
   },
-  keys: {
+  keysOf: {
     f(ctx, scope, obj) {
       return Object.keys(toObject(obj));
     },
   },
-  values: {
+  valuesOf: {
     f(ctx, scope, obj) {
       return Object.values(toObject(obj));
     },
   },
-  get: {
+  getProperty: {
     f(ctx, scope, obj, key) {
       return toObject(obj)[toString(key)] ?? null;
     },
   },
-  set: {
+  setProperty: {
     f(ctx, scope, obj, key, value) {
       if (obj && typeof obj === 'object') {
         obj[toString(key)] = value;

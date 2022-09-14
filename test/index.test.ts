@@ -50,7 +50,7 @@ describe('evalexpr', () => {
 
     expect(evaluateExpr('join([1,2,2+1], " ")').result).toBe('1 2 3');
     expect(
-      evaluateExpr('join(keys({a: 1, b: 2, [66*6]: 3}), " ")').result,
+      evaluateExpr('join(keysOf({a: 1, b: 2, [66*6]: 3}), " ")').result,
     ).toBe('396 a b');
     expect(
       evaluateExpr(`
@@ -60,7 +60,7 @@ describe('evalexpr', () => {
             a,
             c: "haha"
           },
-          get(b, "a") + 3
+          getProperty(b, "a") + 3
         )
       `).result,
     ).toBe(4);
@@ -74,7 +74,7 @@ describe('evalexpr', () => {
           a,
           c: "haha"
         },
-        get(b, "a") + 3
+        getProperty(b, "a") + 3
       )`,
         (v) => {
           if (v === 'a') {
@@ -83,6 +83,6 @@ describe('evalexpr', () => {
           return v;
         },
       ),
-    ).toBe('do(AAA := 1, b := {AAA, c: "haha"}, get(b, "a") + 3)');
+    ).toBe('do(AAA := 1, b := {AAA, c: "haha"}, getProperty(b, "a") + 3)');
   });
 });
