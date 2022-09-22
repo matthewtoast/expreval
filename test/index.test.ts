@@ -1,7 +1,10 @@
-import { createExprContext, evaluateExpr, rewriteCode } from '../src';
+import evaluateExpr, { createExprContext, rewriteCode } from '../src';
 
 describe('evalexpr', () => {
   it('evalexpr', () => {
+    expect(evaluateExpr('map([1,2,3], (n) => n + 1)').result).toStrictEqual([
+      2, 3, 4,
+    ]);
     expect(evaluateExpr('1 + (3 * 4) - add(5, 6)').result).toBe(2);
     expect(evaluateExpr('1 > 2').result).toBe(false);
     expect(evaluateExpr('"bob" + "jones"').result).toBe('bobjones');
@@ -47,7 +50,6 @@ describe('evalexpr', () => {
         }),
       ).result,
     ).toBe(6791.23);
-
     expect(evaluateExpr('join([1,2,2+1], " ")').result).toBe('1 2 3');
     expect(
       evaluateExpr('join(keysOf({a: 1, b: 2, [66*6]: 3}), " ")').result,
@@ -64,7 +66,6 @@ describe('evalexpr', () => {
         )
       `).result,
     ).toBe(4);
-
     expect(
       rewriteCode(
         `

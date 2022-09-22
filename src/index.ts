@@ -84,7 +84,8 @@ export type TExpression =
   | TTemplateLiteralExpression
   | TArrayLiteralExpression
   | TObjectLiteralExpression
-  | TComputedPropertyExpression;
+  | TComputedPropertyExpression
+  | TArrowFunctionExpression;
 
 export type TTemplateLiteralPart =
   | ['chunks', string]
@@ -148,6 +149,12 @@ export type TUnaryExpression = {
   type: 'UnaryExpression';
   argument: TExpression;
   operator: string;
+};
+
+export type TArrowFunctionExpression = {
+  type: 'ArrowFunction';
+  parameters: { type: 'BoundName'; name: string }[];
+  result: TExpression;
 };
 
 export const CONSTS: DictOf<TExprValue> = {
@@ -331,6 +338,8 @@ export function remapAst(
         };
       });
       return res(ast);
+    case 'ArrowFunction':
+      return res(ast);
   }
 }
 
@@ -390,6 +399,11 @@ export function genCode(
           .join(', ') +
         '}'
       );
+    case 'ArrowFunction':
+      return `(${ast.parameters.map((p) => p.name).join(', ')}) => ${genCode(
+        ast.result,
+        res,
+      )}`;
   }
 }
 
@@ -505,6 +519,11 @@ export function executeAst(
         obj[key] = executeAst(value ? value : name, ctx, scope);
       }
       return obj;
+    case 'ArrowFunction':
+      return {
+        params: ast.parameters.map(({ name }) => name),
+        body: ast.result,
+      };
     default:
       console.info(ast);
       throw new Error(`Syntax error`);
@@ -631,12 +650,6 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   do: {
     f(ctx, scope, ...args) {
       return args[args.length - 1] ?? null;
-    },
-  },
-  defp: {
-    lazy: true,
-    f(ctx, scope, ...args) {
-      return 0;
     },
   },
   present: {
@@ -1383,7 +1396,86 @@ export const STDLIB: DictOf<TExprFuncDef> = {
       return obj;
     },
   },
+  map: {
+    f(ctx, scope, arr, mapper) {
+      arr = toArray(arr);
+      const func = asFunc(mapper);
+      if (!func) {
+        return arr;
+      }
+      const { params, body } = func;
+      return arr.map((el, idx, coll) => {
+        const subscope = {
+          ...scope,
+          [params[0] ?? '__element__']: el,
+          [params[1] ?? '__index__']: idx,
+          [params[2] ?? '__collection__']: coll,
+        };
+        return executeAst(
+          body,
+          {
+            ...ctx,
+            get(scope, key) {
+              if (scope[key] !== undefined) {
+                return scope[key] ?? null;
+              }
+              return ctx.get(scope, key);
+            },
+          },
+          subscope,
+        );
+      });
+    },
+  },
+  filter: {
+    f(ctx, scope, arr, mapper) {
+      arr = toArray(arr);
+      const func = asFunc(mapper);
+      if (!func) {
+        return arr;
+      }
+      const { params, body } = func;
+      return arr.filter((el, idx, coll) => {
+        const subscope = {
+          ...scope,
+          [params[0] ?? '__element__']: el,
+          [params[1] ?? '__index__']: idx,
+          [params[2] ?? '__collection__']: coll,
+        };
+        return toBoolean(
+          executeAst(
+            body,
+            {
+              ...ctx,
+              get(scope, key) {
+                if (scope[key] !== undefined) {
+                  return scope[key] ?? null;
+                }
+                return ctx.get(scope, key);
+              },
+            },
+            subscope,
+          ),
+        );
+      });
+    },
+  },
 };
+
+function asFunc(v: any): { body: TExpression; params: string[] } | undefined {
+  if (v && typeof v === 'object') {
+    const { params, body } = v as any;
+    if (
+      Array.isArray(params) &&
+      body &&
+      typeof body === 'object' &&
+      typeof body['type'] === 'string'
+    ) {
+      return { body, params };
+    }
+  }
+  return;
+}
 
 // The code below is derived from code at https://github.com/dmaevsky/rd-parse. License:
 // The MIT License (MIT)
@@ -1792,7 +1884,32 @@ const DefaultGrammar = IgnoreWhitespace(
           : test;
       },
     );
-    return Node(Any(TernaryExpression), ([expr], $, $next) =>
+    const BoundName = Node(IdentifierToken, ([name], $, $next) =>
+      srcMap({ type: 'BoundName', name }, $, $next),
+    );
+    const FormalsList = Node(
+      All(BoundName, Star(All(',', BoundName))),
+      (bound) => bound,
+    );
+    const FormalParameters = Node(All('(', All(FormalsList), ')'), (parts) =>
+      parts.reduce((acc, part) => Object.assign(acc, part), []),
+    );
+    const ArrowParameters = Node(
+      Any(BoundName, FormalParameters),
+      ([params]) => params,
+    );
+    const FoolSafe = Node('{', () => {
+      throw new Error(
+        'Object literal returned from the arrow function needs to be enclosed in ()',
+      );
+    });
+    const ArrowResult = Any(FoolSafe, Expression);
+    const ArrowFunction = Node(
+      All(ArrowParameters, '=>', ArrowResult),
+      ([parameters, result]) => ({ type: 'ArrowFunction', parameters, result }),
+    );
+
+    return Node(Any(ArrowFunction, TernaryExpression), ([expr], $, $next) =>
       srcMap(expr, $, $next),
     );
   }),

@@ -228,6 +228,8 @@
                     };
                 });
                 return res(ast);
+            case 'ArrowFunction':
+                return res(ast);
         }
     }
     function genCode(ast, res) {
@@ -276,6 +278,8 @@
                     })
                         .join(', ') +
                     '}');
+            case 'ArrowFunction':
+                return "(".concat(ast.parameters.map(function (p) { return p.name; }).join(', '), ") => ").concat(genCode(ast.result, res));
         }
     }
     function rewriteCode(code, res) {
@@ -383,6 +387,14 @@
                     obj[key] = executeAst(value_2 ? value_2 : name, ctx, scope);
                 }
                 return obj;
+            case 'ArrowFunction':
+                return {
+                    params: ast.parameters.map(function (_a) {
+                        var name = _a.name;
+                        return name;
+                    }),
+                    body: ast.result,
+                };
             default:
                 console.info(ast);
                 throw new Error("Syntax error");
@@ -499,12 +511,6 @@
                     args[_i - 2] = arguments[_i];
                 }
                 return (_a = args[args.length - 1]) !== null && _a !== void 0 ? _a : null;
-            },
-        },
-        defp: {
-            lazy: true,
-            f: function (ctx, scope) {
-                return 0;
             },
         },
         present: {
@@ -1233,7 +1239,63 @@
                 return obj;
             },
         },
+        map: {
+            f: function (ctx, scope, arr, mapper) {
+                arr = toArray(arr);
+                var func = asFunc(mapper);
+                if (!func) {
+                    return arr;
+                }
+                var params = func.params, body = func.body;
+                return arr.map(function (el, idx, coll) {
+                    var _a;
+                    var _b, _c, _d;
+                    var subscope = __assign(__assign({}, scope), (_a = {}, _a[(_b = params[0]) !== null && _b !== void 0 ? _b : '__element__'] = el, _a[(_c = params[1]) !== null && _c !== void 0 ? _c : '__index__'] = idx, _a[(_d = params[2]) !== null && _d !== void 0 ? _d : '__collection__'] = coll, _a));
+                    return executeAst(body, __assign(__assign({}, ctx), { get: function (scope, key) {
+                            var _a;
+                            if (scope[key] !== undefined) {
+                                return (_a = scope[key]) !== null && _a !== void 0 ? _a : null;
+                            }
+                            return ctx.get(scope, key);
+                        } }), subscope);
+                });
+            },
+        },
+        filter: {
+            f: function (ctx, scope, arr, mapper) {
+                arr = toArray(arr);
+                var func = asFunc(mapper);
+                if (!func) {
+                    return arr;
+                }
+                var params = func.params, body = func.body;
+                return arr.filter(function (el, idx, coll) {
+                    var _a;
+                    var _b, _c, _d;
+                    var subscope = __assign(__assign({}, scope), (_a = {}, _a[(_b = params[0]) !== null && _b !== void 0 ? _b : '__element__'] = el, _a[(_c = params[1]) !== null && _c !== void 0 ? _c : '__index__'] = idx, _a[(_d = params[2]) !== null && _d !== void 0 ? _d : '__collection__'] = coll, _a));
+                    return toBoolean(executeAst(body, __assign(__assign({}, ctx), { get: function (scope, key) {
+                            var _a;
+                            if (scope[key] !== undefined) {
+                                return (_a = scope[key]) !== null && _a !== void 0 ? _a : null;
+                            }
+                            return ctx.get(scope, key);
+                        } }), subscope));
+                });
+            },
+        },
     };
+    function asFunc(v) {
+        if (v && typeof v === 'object') {
+            var _a = v, params = _a.params, body = _a.body;
+            if (Array.isArray(params) &&
+                body &&
+                typeof body === 'object' &&
+                typeof body['type'] === 'string') {
+                return { body: body, params: params };
+            }
+        }
+        return;
+    }
     // The code below is derived from code at https://github.com/dmaevsky/rd-parse. License:
     // The MIT License (MIT)
     // Copyright 2013 - present Dmitry Maevsky
@@ -1578,7 +1640,27 @@
                 ? { type: 'ConditionalExpression', test: test, consequent: consequent, alternate: alternate }
                 : test;
         });
-        return Node(Any(TernaryExpression), function (_a, $, $next) {
+        var BoundName = Node(IdentifierToken, function (_a, $, $next) {
+            var name = _a[0];
+            return srcMap({ type: 'BoundName', name: name }, $, $next);
+        });
+        var FormalsList = Node(All(BoundName, Star(All(',', BoundName))), function (bound) { return bound; });
+        var FormalParameters = Node(All('(', All(FormalsList), ')'), function (parts) {
+            return parts.reduce(function (acc, part) { return Object.assign(acc, part); }, []);
+        });
+        var ArrowParameters = Node(Any(BoundName, FormalParameters), function (_a) {
+            var params = _a[0];
+            return params;
+        });
+        var FoolSafe = Node('{', function () {
+            throw new Error('Object literal returned from the arrow function needs to be enclosed in ()');
+        });
+        var ArrowResult = Any(FoolSafe, Expression);
+        var ArrowFunction = Node(All(ArrowParameters, '=>', ArrowResult), function (_a) {
+            var parameters = _a[0], result = _a[1];
+            return ({ type: 'ArrowFunction', parameters: parameters, result: result });
+        });
+        return Node(Any(ArrowFunction, TernaryExpression), function (_a, $, $next) {
             var expr = _a[0];
             return srcMap(expr, $, $next);
         });

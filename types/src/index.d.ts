@@ -42,7 +42,7 @@ export declare type TExprContext = {
 export declare type TScope = {
     [key: string]: TExprValue;
 };
-export declare type TExpression = TCallExpression | TIdentifierExpression | TBinaryExpression | TLiteralExpression | TConditionalExpression | TUnaryExpression | TTemplateLiteralExpression | TArrayLiteralExpression | TObjectLiteralExpression | TComputedPropertyExpression;
+export declare type TExpression = TCallExpression | TIdentifierExpression | TBinaryExpression | TLiteralExpression | TConditionalExpression | TUnaryExpression | TTemplateLiteralExpression | TArrayLiteralExpression | TObjectLiteralExpression | TComputedPropertyExpression | TArrowFunctionExpression;
 export declare type TTemplateLiteralPart = ['chunks', string] | ['expression', TExpression];
 export declare type TTemplateLiteralExpression = {
     type: 'TemplateLiteral';
@@ -93,6 +93,14 @@ export declare type TUnaryExpression = {
     type: 'UnaryExpression';
     argument: TExpression;
     operator: string;
+};
+export declare type TArrowFunctionExpression = {
+    type: 'ArrowFunction';
+    parameters: {
+        type: 'BoundName';
+        name: string;
+    }[];
+    result: TExpression;
 };
 export declare const CONSTS: DictOf<TExprValue>;
 export declare function createExprContext({ funcs, binops, unops, seed, get, set, call, }: Partial<TExprContext> & {
