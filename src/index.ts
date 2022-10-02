@@ -523,7 +523,7 @@ export function executeAst(
       return {
         params: ast.parameters.map(({ name }) => name),
         body: ast.result,
-      };
+      } as any;
     default:
       console.info(ast);
       throw new Error(`Syntax error`);
