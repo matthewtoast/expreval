@@ -275,22 +275,31 @@ export function createExprContext({
   };
 }
 
+export type TExpressionCache = { [key: string]: TExpression };
+
 export function evaluateExpr(
   code: string,
   ctx: TExprContext = createExprContext({}),
   scope: TScope = {},
+  cache: TExpressionCache = {},
 ): TExprResult {
   return {
-    result: executeAst(parseExpr(code), ctx, scope),
+    result: executeAst(parseExpr(code, cache), ctx, scope),
     ctx,
   };
 }
 
 export default evaluateExpr;
 
-export function parseExpr(code: string): TExpression {
-  const parser = Parser(DefaultGrammar);
-  return parser(code.replace(/\/\/.*\n/g, ''));
+export function parseExpr(
+  code: string,
+  cache: TExpressionCache,
+  parser = DEFAULT_PARSER,
+): TExpression {
+  if (!cache[code]) {
+    cache[code] = parser(code.replace(/\/\/.*\n/g, ''));
+  }
+  return cache[code]!;
 }
 
 export function remapAst(
@@ -407,8 +416,12 @@ export function genCode(
   }
 }
 
-export function rewriteCode(code: string, res: (ident: string) => string) {
-  return genCode(parseExpr(code), res);
+export function rewriteCode(
+  code: string,
+  res: (ident: string) => string,
+  cache: TExpressionCache,
+) {
+  return genCode(parseExpr(code, cache), res);
 }
 
 export function executeAst(
@@ -1914,6 +1927,8 @@ const DefaultGrammar = IgnoreWhitespace(
     );
   }),
 );
+
+export const DEFAULT_PARSER = Parser(DefaultGrammar);
 
 export function clamp(n: number, min: number = 0, max: number = 1): number {
   if (n < min) return min;

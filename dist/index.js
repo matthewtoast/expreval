@@ -173,17 +173,21 @@ function createExprContext(_a) {
         call: call,
     };
 }
-function evaluateExpr(code, ctx, scope) {
+function evaluateExpr(code, ctx, scope, cache) {
     if (ctx === void 0) { ctx = createExprContext({}); }
     if (scope === void 0) { scope = {}; }
+    if (cache === void 0) { cache = {}; }
     return {
-        result: executeAst(parseExpr(code), ctx, scope),
+        result: executeAst(parseExpr(code, cache), ctx, scope),
         ctx: ctx,
     };
 }
-function parseExpr(code) {
-    var parser = Parser(DefaultGrammar);
-    return parser(code.replace(/\/\/.*\n/g, ''));
+function parseExpr(code, cache, parser) {
+    if (parser === void 0) { parser = DEFAULT_PARSER; }
+    if (!cache[code]) {
+        cache[code] = parser(code.replace(/\/\/.*\n/g, ''));
+    }
+    return cache[code];
 }
 function remapAst(ast, res) {
     switch (ast.type) {
@@ -283,8 +287,8 @@ function genCode(ast, res) {
             return "(".concat(ast.parameters.map(function (p) { return p.name; }).join(', '), ") => ").concat(genCode(ast.result, res));
     }
 }
-function rewriteCode(code, res) {
-    return genCode(parseExpr(code), res);
+function rewriteCode(code, res, cache) {
+    return genCode(parseExpr(code, cache), res);
 }
 function executeAst(ast, ctx, scope) {
     var _a;
@@ -1666,6 +1670,7 @@ var DefaultGrammar = IgnoreWhitespace(Y(function (Expression) {
         return srcMap(expr, $, $next);
     });
 }));
+var DEFAULT_PARSER = Parser(DefaultGrammar);
 function clamp(n, min, max) {
     if (min === void 0) { min = 0; }
     if (max === void 0) { max = 1; }
@@ -1691,6 +1696,7 @@ function isNumeric(a) {
 }
 
 exports.CONSTS = CONSTS;
+exports.DEFAULT_PARSER = DEFAULT_PARSER;
 exports.STDLIB = STDLIB;
 exports.ZExprScalar = ZExprScalar;
 exports.avg = avg;

@@ -106,12 +106,15 @@ export declare const CONSTS: DictOf<TExprValue>;
 export declare function createExprContext({ funcs, binops, unops, seed, get, set, call, }: Partial<TExprContext> & {
     seed?: string;
 }): TExprContext;
-export declare function evaluateExpr(code: string, ctx?: TExprContext, scope?: TScope): TExprResult;
+export declare type TExpressionCache = {
+    [key: string]: TExpression;
+};
+export declare function evaluateExpr(code: string, ctx?: TExprContext, scope?: TScope, cache?: TExpressionCache): TExprResult;
 export default evaluateExpr;
-export declare function parseExpr(code: string): TExpression;
+export declare function parseExpr(code: string, cache: TExpressionCache, parser?: (text: string) => TExpression): TExpression;
 export declare function remapAst(ast: TExpression, res: (ast: TExpression) => TExpression): TExpression;
 export declare function genCode(ast: TExpression, res?: (ident: string) => string): string;
-export declare function rewriteCode(code: string, res: (ident: string) => string): string;
+export declare function rewriteCode(code: string, res: (ident: string) => string, cache: TExpressionCache): string;
 export declare function executeAst(ast: TExpression, ctx: TExprContext | undefined, scope: TScope): TExprValue;
 export declare function exprToIdentifier(v: TExpression): string | null;
 export declare function toNumber(v: any, fallback?: number): number;
@@ -121,6 +124,7 @@ export declare function toObject(v: any): TExprObject;
 export declare function toArray(v: any): TExprArray;
 export declare function toScalar(n: any, radix?: number): TExprScalar;
 export declare const STDLIB: DictOf<TExprFuncDef>;
+export declare const DEFAULT_PARSER: (text: string) => TExpression;
 export declare function clamp(n: number, min?: number, max?: number): number;
 export declare function avg(nn: number[]): number;
 export declare function sum(nn: number[]): number;
