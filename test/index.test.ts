@@ -83,6 +83,7 @@ describe('evalexpr', () => {
           }
           return v;
         },
+        {},
       ),
     ).toBe('do(AAA := 1, b := {AAA, c: "haha"}, getProperty(b, "a") + 3)');
   });
