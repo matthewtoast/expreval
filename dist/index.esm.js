@@ -484,6 +484,16 @@ function getVar(ctx, scope, name) {
     return (_a = ctx.get(scope, name + '')) !== null && _a !== void 0 ? _a : null;
 }
 var STDLIB = {
+    debug: {
+        f: function (ctx, scope) {
+            var args = [];
+            for (var _i = 2; _i < arguments.length; _i++) {
+                args[_i - 2] = arguments[_i];
+            }
+            console.debug.apply(console, args);
+            return null;
+        },
+    },
     do: {
         f: function (ctx, scope) {
             var _a;

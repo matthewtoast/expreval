@@ -660,6 +660,12 @@ function getVar(ctx: TExprContext, scope: TScope, name: any): TExprValue {
 }
 
 export const STDLIB: DictOf<TExprFuncDef> = {
+  debug: {
+    f: (ctx, scope, ...args) => {
+      console.debug(...args);
+      return null;
+    },
+  },
   do: {
     f(ctx, scope, ...args) {
       return args[args.length - 1] ?? null;
