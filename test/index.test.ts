@@ -1,4 +1,4 @@
-import evaluateExpr, { createExprContext, rewriteCode } from '../src';
+import evaluateExpr, { createExprContext, parseExpr, rewriteCode } from '../src';
 
 describe('evalexpr', () => {
   it('evalexpr', () => {
@@ -70,7 +70,7 @@ describe('evalexpr', () => {
       rewriteCode(
         `
       do(
-        a := 1,
+        a:=1,
         b := {
           a,
           c: "haha"
@@ -86,5 +86,6 @@ describe('evalexpr', () => {
         {},
       ),
     ).toBe('do(AAA := 1, b := {AAA, c: "haha"}, getProperty(b, "a") + 3)');
+    expect(parseExpr('a$1:ac', {})).toEqual({ type: 'Identifier', name: 'a$1:ac' })
   });
 });

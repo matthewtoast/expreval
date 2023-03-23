@@ -217,7 +217,7 @@ const NumericToken = Any(
 );
 const NullToken = /^(null)\b/;
 const BooleanToken = /^(true|false)\b/;
-const IdentifierToken = /^([a-zA-Z_$][a-zA-Z0-9_$.]*)/;
+const IdentifierToken = /^([a-zA-Z_$][a-zA-Z0-9_$.]*(:[a-zA-Z_$]+)?)/;
 const InterpolationChunkToken = /^((?:\$(?!{)|\\.|[^`$\\])+)/;
 const BinaryOperatorPrecedence = [
   '**',
@@ -1752,10 +1752,12 @@ const srcMap = (obj, $, $next) =>
 
 const DefaultGrammar = IgnoreWhitespace(
   Y((Expression) => {
-    const Identifier = Node(IdentifierToken, ([name]) => ({
-      type: 'Identifier',
-      name,
-    }));
+    const Identifier = Node(IdentifierToken, ([name, ...rest]) => {
+      return {
+        type: 'Identifier',
+        name,
+      }
+    });
     const StringLiteral = Node(QuoteToken, ([raw]) => ({
       type: 'Literal',
       value: raw.slice(1, -1),
