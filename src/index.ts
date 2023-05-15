@@ -19,6 +19,11 @@ export type TExprFuncSync = (
   scope: TScope,
   ...args: TExprValue[]
 ) => TExprValue;
+export type TExprFuncAsync = (
+  ctx: TExprContext,
+  scope: TScope,
+  ...args: TExprValue[]
+) => Promise<TExprValue>;
 export type TExprFuncLazy = (
   ctx: TExprContext,
   scope: TScope,
@@ -28,7 +33,7 @@ export type TExprFuncDef =
   | {
       assignment?: true;
       lazy?: undefined;
-      f: TExprFuncSync;
+      f: TExprFuncAsync;
     }
   | {
       lazy: true;
@@ -52,15 +57,15 @@ export type TExprContext = {
   funcs: DictOf<TExprFuncDef>;
   binops: DictOf<TBinopDef>;
   unops: DictOf<TUnopDef>;
-  get: (scope: TScope, key: string) => TExprValue;
-  set: (scope: TScope, key: string, value: TExprValue) => void;
+  get: (scope: TScope, key: string) => Promise<TExprValue>;
+  set: (scope: TScope, key: string, value: TExprValue) => Promise<void>;
   call?:
     | ((
         ctx: TExprContext,
         scope: TScope,
         method: string,
         args: TExprValue[],
-      ) => TExprValue)
+      ) => Promise<TExprValue>)
     | undefined;
   lazy?:
     | ((
@@ -68,7 +73,7 @@ export type TExprContext = {
         scope: TScope,
         method: string,
         args: TExpression[],
-      ) => TExprValue)
+      ) => Promise<TExprValue>)
     | undefined;
 };
 
@@ -252,7 +257,7 @@ export function createExprContext({
     funcs: { ...STDLIB, ...funcs },
     binops: { ...BINOP_MAP, ...binops },
     unops: { ...UNOP_MAP, ...unops },
-    get: (scope, name) => {
+    get: async (scope, name) => {
       if (name.match(INVALID_IDENT_REGEX)) {
         return 0;
       }
@@ -261,7 +266,7 @@ export function createExprContext({
       }
       return vars[name] ?? null;
     },
-    set: (scope, name, value) => {
+    set: async (scope, name, value) => {
       if (name.match(INVALID_IDENT_REGEX)) {
         return;
       }
@@ -277,14 +282,14 @@ export function createExprContext({
 
 export type TExpressionCache = { [key: string]: TExpression };
 
-export function evaluateExpr(
+export async function evaluateExpr(
   code: string,
   ctx: TExprContext = createExprContext({}),
   scope: TScope = {},
   cache: TExpressionCache = {},
-): TExprResult {
+): Promise<TExprResult> {
   return {
-    result: executeAst(parseExpr(code, cache), ctx, scope),
+    result: await executeAst(parseExpr(code, cache), ctx, scope),
     ctx,
   };
 }
@@ -424,38 +429,50 @@ export function rewriteCode(
   return genCode(parseExpr(code, cache), res);
 }
 
-export function executeAst(
+async function asyncMap<V, T>(
+  array: V[],
+  callback: (el: V, idx: number, arr: V[]) => Promise<T>
+) {
+  const out: T[] = []
+  for (let index = 0; index < array.length; index++) {
+    const m = await callback(array[index]!, index, array)
+    out.push(m)
+  }
+  return out
+}
+
+export async function executeAst(
   ast: TExpression,
   ctx: TExprContext = createExprContext({}),
   scope: TScope,
-): TExprValue {
+): Promise<TExprValue> {
   switch (ast.type) {
     case 'Literal':
       return ast.value;
     case 'Identifier':
-      const value = ctx.get(scope, ast.name);
+      const value = await ctx.get(scope, ast.name);
       return value !== undefined ? value : ast.name;
     case 'CallExpression':
       const fdef = Object.keys(ctx.funcs).includes(ast.callee.name)
         ? ctx.funcs[ast.callee.name]
         : null;
       if (fdef && fdef.lazy) {
-        return fdef.f(ctx, scope, ...ast.arguments);
+        return await fdef.f(ctx, scope, ...ast.arguments);
       }
       const args: TExprValue[] = [];
       if (fdef && fdef.assignment && ast.arguments.length > 1) {
         const left = exprToIdentifier(ast.arguments[0]!) ?? '';
         const right = ast.arguments.slice(1);
-        args.push(left, ...right.map((expr) => executeAst(expr, ctx, scope)));
+        args.push(left, ...await asyncMap(right, async (expr) => await executeAst(expr, ctx, scope)));
       } else {
-        args.push(...ast.arguments.map((expr) => executeAst(expr, ctx, scope)));
+        args.push(...await asyncMap(ast.arguments, async (expr) => await executeAst(expr, ctx, scope)));
       }
       if (fdef) {
         const result = fdef.f(ctx, scope, ...args);
         return result;
       }
       if (ctx.call) {
-        return ctx.call(ctx, scope, ast.callee.name, args);
+        return await ctx.call(ctx, scope, ast.callee.name, args);
       }
       throw new Error(`Function not found: '${ast.callee.name}'`);
     case 'BinaryExpression':
@@ -463,7 +480,7 @@ export function executeAst(
         ? ctx.binops[ast.operator]
         : null;
       if (binop) {
-        return executeAst(
+        return await executeAst(
           {
             type: 'CallExpression',
             callee: {
@@ -478,17 +495,17 @@ export function executeAst(
       }
       throw new Error(`Operator not found: '${ast.operator}'`);
     case 'ConditionalExpression':
-      const result = executeAst(ast.test, ctx, scope);
+      const result = await executeAst(ast.test, ctx, scope);
       if (toBoolean(result)) {
         return executeAst(ast.consequent, ctx, scope);
       }
-      return executeAst(ast.alternate, ctx, scope);
+      return await executeAst(ast.alternate, ctx, scope);
     case 'UnaryExpression':
       const unop = Object.keys(ctx.unops).includes(ast.operator)
         ? ctx.unops[ast.operator]
         : null;
       if (unop) {
-        return executeAst(
+        return await executeAst(
           {
             type: 'CallExpression',
             callee: {
@@ -509,27 +526,27 @@ export function executeAst(
         if (kind === 'chunks') {
           accum += value;
         } else if (kind === 'expression') {
-          accum += executeAst(value, ctx, scope) + '';
+          accum += await executeAst(value, ctx, scope) + '';
         }
       }
       return accum;
     case 'ComputedProperty':
-      return executeAst(ast.expression, ctx, scope);
+      return await executeAst(ast.expression, ctx, scope);
     case 'ArrayLiteral':
-      return ast.elements.map((element) => executeAst(element, ctx, scope));
+      return await asyncMap(ast.elements, async (element) => await executeAst(element, ctx, scope));
     case 'ObjectLiteral':
       const obj = {};
       for (let i = 0; i < ast.properties.length; i++) {
         const { name, value } = ast.properties[i]!;
         let key: string = '';
         if (name.type === 'ComputedProperty') {
-          key = toString(executeAst(name.expression, ctx, scope));
+          key = toString(await executeAst(name.expression, ctx, scope));
         } else if (name.type === 'Identifier') {
           key = name.name; // Don't evaluate this if 'bare'
         } else if (name.type === 'Literal') {
           key = name.value;
         }
-        obj[key] = executeAst(value ? value : name, ctx, scope);
+        obj[key] = await executeAst(value ? value : name, ctx, scope);
       }
       return obj;
     case 'ArrowFunction':
@@ -644,40 +661,40 @@ export function toScalar(n: any, radix: number = 10): TExprScalar {
   return n + '';
 }
 
-function setVar<T extends TExprValue>(
+async function setVar<T extends TExprValue>(
   ctx: TExprContext,
   scope: TScope,
   name: any,
   value: T,
-): T {
+): Promise<T> {
   const key = toString(name);
-  ctx.set(scope, key, value);
+  await ctx.set(scope, key, value);
   return value;
 }
 
-function getVar(ctx: TExprContext, scope: TScope, name: any): TExprValue {
-  return ctx.get(scope, name + '') ?? null;
+async function getVar(ctx: TExprContext, scope: TScope, name: any): Promise<TExprValue> {
+  return (await ctx.get(scope, name + '')) ?? null;
 }
 
 export const STDLIB: DictOf<TExprFuncDef> = {
   debug: {
-    f: (ctx, scope, ...args) => {
+    async f(ctx, scope, ...args) {
       console.debug(...args);
       return null;
     },
   },
   do: {
-    f(ctx, scope, ...args) {
+    async f(ctx, scope, ...args) {
       return args[args.length - 1] ?? null;
     },
   },
   present: {
-    f(ctx, scope, v) {
+    async f(ctx, scope, v) {
       return !!v;
     },
   },
   empty: {
-    f(ctx, scope, v) {
+    async f(ctx, scope, v) {
       if (Array.isArray(v)) {
         return v.length < 1;
       }
@@ -688,7 +705,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   blank: {
-    f(ctx, scope, v) {
+    async f(ctx, scope, v) {
       if (Array.isArray(v)) {
         return v.length < 1;
       }
@@ -703,65 +720,65 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
   setVar: {
     assignment: true,
-    f(ctx, scope, left, right) {
-      return setVar(ctx, scope, left, right);
+    async f(ctx, scope, left, right) {
+      return await setVar(ctx, scope, left, right);
     },
   },
   setAdd: {
     assignment: true,
-    f(ctx, scope, left, right) {
-      const lval = getVar(ctx, scope, left);
+    async f(ctx, scope, left, right) {
+      const lval = await getVar(ctx, scope, left);
       if (typeof lval === 'string') {
-        return setVar(ctx, scope, left, lval + right + '');
+        return await setVar(ctx, scope, left, lval + right + '');
       }
-      return setVar(ctx, scope, left, toNumber(lval) + toNumber(right));
+      return await setVar(ctx, scope, left, toNumber(lval) + toNumber(right));
     },
   },
   setSub: {
     assignment: true,
-    f(ctx, scope, left, right) {
-      return setVar(
+    async f(ctx, scope, left, right) {
+      return await setVar(
         ctx,
         scope,
         left,
-        toNumber(getVar(ctx, scope, left)) - toNumber(right),
+        toNumber(await getVar(ctx, scope, left)) - toNumber(right),
       );
     },
   },
   setMul: {
     assignment: true,
-    f(ctx, scope, left, right) {
-      return setVar(
+    async f(ctx, scope, left, right) {
+      return await setVar(
         ctx,
         scope,
         left,
-        toNumber(getVar(ctx, scope, left)) * toNumber(right),
+        toNumber(await getVar(ctx, scope, left)) * toNumber(right),
       );
     },
   },
   setDiv: {
     assignment: true,
-    f(ctx, scope, left, right) {
-      return setVar(
+    async f(ctx, scope, left, right) {
+      return await setVar(
         ctx,
         scope,
         left,
-        toNumber(getVar(ctx, scope, left)) / toNumber(right),
+        toNumber(await getVar(ctx, scope, left)) / toNumber(right),
       );
     },
   },
   nullCoalesce: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return a ?? b;
     },
   },
   unixTimestampNow: {
-    f() {
+    async f() {
       return Date.now();
     },
   },
   unixTimestampForDate: {
-    f(ctx, scope, year, mon, day, hour, min, second) {
+    async f(ctx, scope, year, mon, day, hour, min, second) {
       return new Date(
         toNumber(year),
         toNumber(mon),
@@ -773,7 +790,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   all: {
-    f(ctx, scope, xs) {
+    async f(ctx, scope, xs) {
       if (!Array.isArray(xs)) {
         return !!xs;
       }
@@ -786,7 +803,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   any: {
-    f(ctx, scope, xs) {
+    async f(ctx, scope, xs) {
       if (!Array.isArray(xs)) {
         return !!xs;
       }
@@ -799,89 +816,89 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   some: {
-    f(ctx, scope, xs) {
+    async f(ctx, scope, xs) {
       return !!STDLIB['any']!.f(ctx, scope, xs as any);
     },
   },
   none: {
-    f(ctx, scope, xs) {
+    async f(ctx, scope, xs) {
       return !STDLIB['any']!.f(ctx, scope, xs as any);
     },
   },
   or: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toBoolean(a) || toBoolean(b);
     },
   },
   and: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toBoolean(a) && toBoolean(b);
     },
   },
   not: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return !toBoolean(a);
     },
   },
   gt: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toNumber(a) > toNumber(b);
     },
   },
   gte: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toNumber(a) > toNumber(b);
     },
   },
   lt: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toNumber(a) > toNumber(b);
     },
   },
   lte: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toNumber(a) > toNumber(b);
     },
   },
   eq: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toString(a) === toString(b);
     },
   },
   neq: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toString(a) !== toString(b);
     },
   },
   rand: {
-    f(ctx) {
+    async f(ctx) {
       return ctx.rng();
     },
   },
   randInRange: {
-    f(ctx, scope, min, max) {
+    async f(ctx, scope, min, max) {
       return ctx.rng() * (Number(max) - Number(min)) + Number(min);
     },
   },
   randInt: {
-    f(ctx) {
+    async f(ctx) {
       return Math.floor(ctx.rng() * 10);
     },
   },
   randIntInRange: {
-    f(ctx, scope, min, max) {
+    async f(ctx, scope, min, max) {
       min = Math.ceil(Number(min));
       max = Math.floor(Number(max));
       return Math.floor(ctx.rng() * (max - min + 1)) + min;
     },
   },
   number: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Number(a);
     },
   },
   isNumeric: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       if (typeof a === 'number') {
         return true;
       }
@@ -892,47 +909,47 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   bitwiseOr: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return Number(a) | Number(b);
     },
   },
   bitwiseXor: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return Number(a) ^ Number(b);
     },
   },
   bitwiseAnd: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return Number(a) & Number(b);
     },
   },
   bitwiseNot: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return ~Number(a);
     },
   },
   bitwiseLeftShift: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return Number(a) << Number(b);
     },
   },
   bitwiseRightShift: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return Number(a) >> Number(b);
     },
   },
   bitwiseRightshiftUnsigned: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return Number(a) >>> Number(b);
     },
   },
   negate: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return -toNumber(a);
     },
   },
   add: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       if (typeof a === 'string') {
         return a + b + '';
       }
@@ -940,307 +957,307 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   sub: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toNumber(a) - toNumber(b);
     },
   },
   div: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toNumber(a) / toNumber(b);
     },
   },
   mul: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toNumber(a) * toNumber(b);
     },
   },
   mod: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toNumber(a) % toNumber(b);
     },
   },
   pow: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return Math.pow(toNumber(a), toNumber(b));
     },
   },
   abs: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.abs(toNumber(a));
     },
   },
   acos: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.acos(toNumber(a));
     },
   },
   acosh: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.acosh(toNumber(a));
     },
   },
   asin: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.asin(toNumber(a));
     },
   },
   asinh: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.asinh(toNumber(a));
     },
   },
   atan: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.atan(toNumber(a));
     },
   },
   atan2: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return Math.atan2(toNumber(a), toNumber(b));
     },
   },
   atanh: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.atanh(toNumber(a));
     },
   },
   cbrt: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.cbrt(toNumber(a));
     },
   },
   ceil: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.ceil(toNumber(a));
     },
   },
   cos: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.cos(toNumber(a));
     },
   },
   cosh: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.cosh(toNumber(a));
     },
   },
   exp: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.exp(toNumber(a));
     },
   },
   floor: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.floor(toNumber(a));
     },
   },
   hypot: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.hypot(toNumber(a));
     },
   },
   log: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.log(toNumber(a));
     },
   },
   log10: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.log10(toNumber(a));
     },
   },
   log2: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.log2(toNumber(a));
     },
   },
   max: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.max(toNumber(a));
     },
   },
   min: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.min(toNumber(a));
     },
   },
   round: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.round(toNumber(a));
     },
   },
   sign: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.sign(toNumber(a));
     },
   },
   sin: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.sin(toNumber(a));
     },
   },
   sinh: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.sinh(toNumber(a));
     },
   },
   sqrt: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.sqrt(toNumber(a));
     },
   },
   tan: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.tan(toNumber(a));
     },
   },
   tanh: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.tanh(toNumber(a));
     },
   },
   trunc: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return Math.trunc(toNumber(a));
     },
   },
   fromCharCode: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return String.fromCharCode(Number(a));
     },
   },
   fromCodePoint: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return String.fromCodePoint(Number(a));
     },
   },
   parseInt: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return parseInt(toString(a), Number(b));
     },
   },
   parseFloat: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return parseFloat(toString(a));
     },
   },
   charAt: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toString(a).charAt(Number(b));
     },
   },
   charCodeAt: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toString(a).charCodeAt(Number(b));
     },
   },
   codePointAt: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toString(a).codePointAt(Number(b)) ?? 0;
     },
   },
   localeCompare: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toString(a).localeCompare(toString(b));
     },
   },
   match: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return !!toString(a).match(toString(b));
     },
   },
   matchAll: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return !!toString(a).match(toString(b));
     },
   },
   padEnd: {
-    f(ctx, scope, a, b, c) {
+    async f(ctx, scope, a, b, c) {
       return toString(a).padEnd(Number(b), toString(c ?? ''));
     },
   },
   padStart: {
-    f(ctx, scope, a, b, c) {
+    async f(ctx, scope, a, b, c) {
       return toString(a).padStart(Number(b), toString(c ?? ''));
     },
   },
   repeat: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toString(a).repeat(Number(b));
     },
   },
   replace: {
-    f(ctx, scope, a, b, c) {
+    async f(ctx, scope, a, b, c) {
       return toString(a).replace(toString(b), toString(c));
     },
   },
   replaceAll: {
-    f(ctx, scope, a, b, c) {
+    async f(ctx, scope, a, b, c) {
       return toString(a).replaceAll(toString(b), toString(c));
     },
   },
   startsWith: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       return toString(a).startsWith(toString(b));
     },
   },
   substring: {
-    f(ctx, scope, a, b, c) {
+    async f(ctx, scope, a, b, c) {
       return toString(a).substring(Number(b), Number(c));
     },
   },
   toLowerCase: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return toString(a).toLowerCase();
     },
   },
   toUpperCase: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return toString(a).toUpperCase();
     },
   },
   trim: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return toString(a).trim();
     },
   },
   trimEnd: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return toString(a).trimEnd();
     },
   },
   trimStart: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       return toString(a).trimStart();
     },
   },
   clamp: {
-    f(ctx, a, min, max) {
+    async f(ctx, a, min, max) {
       return clamp(toNumber(a), toNumber(min), toNumber(max));
     },
   },
   avg: {
-    f(ctx, scope, nn) {
+    async f(ctx, scope, nn) {
       return avg(toArray(nn).map((n) => toNumber(n)));
     },
   },
   sum: {
-    f(ctx, scope, nn) {
+    async f(ctx, scope, nn) {
       return sum(toArray(nn).map((n) => toNumber(n)));
     },
   },
   join: {
-    f(ctx, scope, ss, spacer) {
+    async f(ctx, scope, ss, spacer) {
       return toArray(ss).join(toString(spacer));
     },
   },
   split: {
-    f(ctx, scope, s, spacer) {
+    async f(ctx, scope, s, spacer) {
       return toString(s).split(toString(spacer));
     },
   },
   first: {
-    f(ctx, scope, arr) {
+    async f(ctx, scope, arr) {
       if (typeof arr === 'string') {
         return arr[0] ?? null;
       }
@@ -1248,7 +1265,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   last: {
-    f(ctx, scope, arr) {
+    async f(ctx, scope, arr) {
       if (typeof arr === 'string') {
         return arr[arr.length] ?? null;
       }
@@ -1257,7 +1274,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   length: {
-    f(ctx, scope, arr) {
+    async f(ctx, scope, arr) {
       if (typeof arr === 'string') {
         return arr.length;
       }
@@ -1265,7 +1282,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   concat: {
-    f(ctx, scope, aa, bb) {
+    async f(ctx, scope, aa, bb) {
       if (typeof aa === 'string') {
         return aa + toString(bb);
       }
@@ -1273,7 +1290,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   endsWith: {
-    f(ctx, scope, a, b, c = '') {
+    async f(ctx, scope, a, b, c = '') {
       if (Array.isArray(a)) {
         a = a.join(toString(c));
       }
@@ -1281,7 +1298,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   includes: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       if (typeof a === 'string') {
         return a.includes(toString(b));
       }
@@ -1289,7 +1306,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   lastIndexOf: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       if (typeof a === 'string') {
         return a.lastIndexOf(toString(b));
       }
@@ -1297,7 +1314,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   indexOf: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       if (typeof a === 'string') {
         return a.indexOf(toString(b));
       }
@@ -1305,7 +1322,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   nth: {
-    f(ctx, scope, a, b) {
+    async f(ctx, scope, a, b) {
       if (typeof a === 'string') {
         return a[toNumber(b)] ?? null;
       }
@@ -1313,7 +1330,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   reverse: {
-    f(ctx, scope, a) {
+    async f(ctx, scope, a) {
       if (typeof a === 'string') {
         return a.split('').reverse().join('');
       }
@@ -1321,7 +1338,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   take: {
-    f(ctx, scope, a, n) {
+    async f(ctx, scope, a, n) {
       if (typeof a === 'string') {
         return a.slice(0, toNumber(n));
       }
@@ -1329,17 +1346,17 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   head: {
-    f(ctx, scope, arr) {
+    async f(ctx, scope, arr) {
       return toArray(arr).slice(0, -1);
     },
   },
   tail: {
-    f(ctx, scope, arr) {
+    async f(ctx, scope, arr) {
       return toArray(arr).slice(1);
     },
   },
   slice: {
-    f(ctx, scope, arr, a, b) {
+    async f(ctx, scope, arr, a, b) {
       if (typeof arr === 'string') {
         return arr.slice(toNumber(a), toNumber(b));
       }
@@ -1347,7 +1364,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   randEl: {
-    f(ctx, scope, arr) {
+    async f(ctx, scope, arr) {
       arr = toArray(arr);
       const i = STDLIB['randIntInRange']!.f(
         ctx,
@@ -1359,7 +1376,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   push: {
-    f(ctx, scope, arr, value) {
+    async f(ctx, scope, arr, value) {
       if (Array.isArray(arr)) {
         arr.push(value);
         return arr.length;
@@ -1368,7 +1385,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   pop: {
-    f(ctx, scope, arr) {
+    async f(ctx, scope, arr) {
       if (Array.isArray(arr)) {
         return arr.pop() ?? null;
       }
@@ -1376,7 +1393,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   shift: {
-    f(ctx, scope, arr) {
+    async f(ctx, scope, arr) {
       if (Array.isArray(arr)) {
         return arr.shift() ?? null;
       }
@@ -1384,7 +1401,7 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   unshift: {
-    f(ctx, scope, arr, value) {
+    async f(ctx, scope, arr, value) {
       if (Array.isArray(arr)) {
         arr.unshift(value);
         return arr.length;
@@ -1393,22 +1410,22 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   keysOf: {
-    f(ctx, scope, obj) {
+    async f(ctx, scope, obj) {
       return Object.keys(toObject(obj));
     },
   },
   valuesOf: {
-    f(ctx, scope, obj) {
+    async f(ctx, scope, obj) {
       return Object.values(toObject(obj));
     },
   },
   getProperty: {
-    f(ctx, scope, obj, key) {
+    async f(ctx, scope, obj, key) {
       return toObject(obj)[toString(key)] ?? null;
     },
   },
   setProperty: {
-    f(ctx, scope, obj, key, value) {
+    async f(ctx, scope, obj, key, value) {
       if (obj && typeof obj === 'object') {
         obj[toString(key)] = value;
       }
@@ -1416,29 +1433,29 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   map: {
-    f(ctx, scope, arr, mapper) {
+    async f(ctx, scope, arr, mapper) {
       arr = toArray(arr);
       const func = asFunc(mapper);
       if (!func) {
         return arr;
       }
       const { params, body } = func;
-      return arr.map((el, idx, coll) => {
+      return asyncMap(arr, async (el, idx, coll) => {
         const subscope = {
           ...scope,
           [params[0] ?? '__element__']: el,
           [params[1] ?? '__index__']: idx,
           [params[2] ?? '__collection__']: coll,
         };
-        return executeAst(
+        return await executeAst(
           body,
           {
             ...ctx,
-            get(scope, key) {
+            async get(scope, key) {
               if (scope[key] !== undefined) {
                 return scope[key] ?? null;
               }
-              return ctx.get(scope, key);
+              return await ctx.get(scope, key);
             },
           },
           subscope,
@@ -1447,36 +1464,42 @@ export const STDLIB: DictOf<TExprFuncDef> = {
     },
   },
   filter: {
-    f(ctx, scope, arr, mapper) {
+    async f(ctx, scope, arr, mapper) {
       arr = toArray(arr);
       const func = asFunc(mapper);
       if (!func) {
         return arr;
       }
       const { params, body } = func;
-      return arr.filter((el, idx, coll) => {
+      const out: any[] = []
+      for (let idx = 0; idx < arr.length; idx++) {
+        const el = arr[idx]!
         const subscope = {
           ...scope,
           [params[0] ?? '__element__']: el,
           [params[1] ?? '__index__']: idx,
-          [params[2] ?? '__collection__']: coll,
+          [params[2] ?? '__collection__']: arr,
         };
-        return toBoolean(
-          executeAst(
+        const result = toBoolean(
+          await executeAst(
             body,
             {
               ...ctx,
-              get(scope, key) {
+              async get(scope, key) {
                 if (scope[key] !== undefined) {
                   return scope[key] ?? null;
                 }
-                return ctx.get(scope, key);
+                return await ctx.get(scope, key);
               },
             },
             subscope,
           ),
         );
-      });
+        if (result) {
+          out.push(el)
+        }
+      }
+      return out
     },
   },
 };
