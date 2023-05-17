@@ -2,6 +2,7 @@ import evaluateExpr, { createExprContext, parseExpr, rewriteCode } from '../src'
 
 describe('evalexpr', () => {
   it('evalexpr', async () => {
+    expect((await evaluateExpr('a := 1')).result).toBe(1);
     expect((await (await evaluateExpr('map([1,2,3], (n) => n + 1)'))).result).toStrictEqual([
       2, 3, 4,
     ]);

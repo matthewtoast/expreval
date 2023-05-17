@@ -938,7 +938,7 @@ var STDLIB = {
         f: function (ctx, scope, a, b) {
             return __awaiter(this, void 0, void 0, function () {
                 return __generator(this, function (_a) {
-                    return [2 /*return*/, toNumber(a) > toNumber(b)];
+                    return [2 /*return*/, toNumber(a) >= toNumber(b)];
                 });
             });
         },
@@ -947,7 +947,7 @@ var STDLIB = {
         f: function (ctx, scope, a, b) {
             return __awaiter(this, void 0, void 0, function () {
                 return __generator(this, function (_a) {
-                    return [2 /*return*/, toNumber(a) > toNumber(b)];
+                    return [2 /*return*/, toNumber(a) < toNumber(b)];
                 });
             });
         },
@@ -956,7 +956,7 @@ var STDLIB = {
         f: function (ctx, scope, a, b) {
             return __awaiter(this, void 0, void 0, function () {
                 return __generator(this, function (_a) {
-                    return [2 /*return*/, toNumber(a) > toNumber(b)];
+                    return [2 /*return*/, toNumber(a) <= toNumber(b)];
                 });
             });
         },

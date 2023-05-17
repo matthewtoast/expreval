@@ -847,17 +847,17 @@ export const STDLIB: DictOf<TExprFuncDef> = {
   },
   gte: {
     async f(ctx, scope, a, b) {
-      return toNumber(a) > toNumber(b);
+      return toNumber(a) >= toNumber(b);
     },
   },
   lt: {
     async f(ctx, scope, a, b) {
-      return toNumber(a) > toNumber(b);
+      return toNumber(a) < toNumber(b);
     },
   },
   lte: {
     async f(ctx, scope, a, b) {
-      return toNumber(a) > toNumber(b);
+      return toNumber(a) <= toNumber(b);
     },
   },
   eq: {
